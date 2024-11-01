@@ -4,7 +4,7 @@ mod utils;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_third_person_camera::*;
-use maze::maze_from_seed;
+use maze::{calc_maze_dims, maze_from_seed};
 use std::{
     borrow::Cow,
     env,
@@ -13,9 +13,7 @@ use std::{
 };
 use utils::dev::write_maze_to_html_file;
 
-const MAZE_HEIGHT: usize = 4;
-const MAZE_WIDTH: usize = 4;
-const CHUNK_SIZE: f32 = 16.0;
+const CHUNK_SIZE: f32 = 32.0;
 const CELL_SIZE: f32 = 4.0;
 
 const PLAYER_SIZE: f32 = 1.0;
@@ -74,7 +72,9 @@ fn spawn_chunks(
     );
 
     commands.spawn(chunk_bundle).with_children(|parent| {
-        let maze = &maze_from_seed(SEED, MAZE_HEIGHT, MAZE_WIDTH);
+        // One maze is created per chunk
+        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
+        let maze = &maze_from_seed(SEED, height, width);
 
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
@@ -281,7 +281,8 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.contains(&ArgName::Html.to_string()) {
-        let maze = &maze_from_seed(SEED, MAZE_HEIGHT, MAZE_WIDTH);
+        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
+        let maze = &maze_from_seed(SEED, height, width);
         write_maze_to_html_file(maze, HTML_FILE_OUTPUT_PATH).unwrap();
     }
 

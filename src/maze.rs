@@ -5,6 +5,15 @@ use std::collections::HashSet;
 
 type Maze = Vec<Vec<Cell>>;
 
+pub fn calc_maze_size(chunk_size: f32, cell_size: f32) -> usize {
+    (chunk_size / cell_size) as usize
+}
+
+pub fn calc_maze_dims(chunk_size: f32, cell_size: f32) -> (usize, usize) {
+    let maze_size = calc_maze_size(chunk_size, cell_size);
+    (maze_size, maze_size) // (height, width)
+}
+
 pub fn maze_from_seed(seed: u32, height: usize, width: usize) -> Maze {
     let mut rng = seed_to_rng(seed);
     maze_from_rng(&mut rng, height, width)
@@ -29,7 +38,8 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
     let mut visit_history: Vec<(usize, usize)> = Vec::new();
 
-    while visited.len() < (height * width) {
+    let area = height * width;
+    while visited.len() < area {
         visited.insert((x, y));
 
         let mut unvisited_adj_cells: Vec<(usize, usize)> = Vec::new();

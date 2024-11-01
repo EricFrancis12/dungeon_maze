@@ -62,8 +62,8 @@ pub fn write_maze_to_html_file(
 
                     #maze {{
                         display: inline-grid;
-                        grid-template-rows: repeat(4, 1fr);
-                        grid-template-columns: repeat(4, 1fr);
+                        grid-template-rows: repeat({}, 1fr);
+                        grid-template-columns: repeat({}, 1fr);
                         border: solid 2px black;
                         margin: 30px;
                     }}
@@ -101,6 +101,8 @@ pub fn write_maze_to_html_file(
 
             </html>
         "#,
+        maze.len(),    // calculate maze height
+        maze[0].len(), // calculate maze width
         cells.join("\n"),
     );
 
