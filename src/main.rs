@@ -13,11 +13,11 @@ use std::{
 };
 use utils::dev::write_maze_to_html_file;
 
-const CHUNK_SIZE: f32 = 32.0;
+const CHUNK_SIZE: f32 = 16.0;
 const CELL_SIZE: f32 = 4.0;
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 8.0;
+const DEFAULT_PLAYER_SPEED: f32 = 3.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -55,6 +55,12 @@ pub struct Cell {
     wall_left: bool,
     wall_right: bool,
 }
+
+#[derive(Component)]
+struct CellObject;
+
+#[derive(Component, Reflect)]
+struct Collider(f32, f32, f32);
 
 fn spawn_chunks(
     mut commands: Commands,
@@ -171,6 +177,8 @@ fn new_cell_wall_bundle(
             transform,
             ..default()
         },
+        CellObject,
+        Collider(CELL_SIZE, 0.1, CELL_SIZE),
         Name::new(name),
     )
 }
@@ -212,6 +220,7 @@ fn spawn_player(
             transform: Transform::from_xyz(0.0, PLAYER_SIZE / 2.0, 0.0),
             ..default()
         },
+        Collider(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE),
         Player,
         ThirdPersonCameraTarget,
         Speed(DEFAULT_PLAYER_SPEED),
@@ -269,6 +278,55 @@ fn player_movement(
     }
 }
 
+fn confine_player_movement(
+    mut player_query: Query<(&mut Transform, &GlobalTransform, &Collider), With<Player>>,
+    mut cell_objects_query: Query<
+        (&GlobalTransform, &Collider),
+        (With<CellObject>, Without<Player>),
+    >,
+) {
+    let (mut player_transform, player_gl_transform, player_collider) =
+        match player_query.get_single_mut() {
+            Ok(p) => p,
+            Err(err) => Err(format!("Error retrieving player: {}", err)).unwrap(),
+        };
+
+    for (cell_object_gl_transform, cell_object_collider) in cell_objects_query.iter() {
+        let player_gl_translation = player_gl_transform.translation();
+        let cell_object_gl_translation = cell_object_gl_transform.translation();
+
+        // x
+        let player_x_top = player_gl_translation.x + player_collider.0 / 2.0;
+        let player_x_bottom = player_gl_translation.x - player_collider.0 / 2.0;
+        let cell_object_x_top = cell_object_gl_translation.x + cell_object_collider.0 / 2.0;
+        let cell_object_x_bottom = cell_object_gl_translation.x - cell_object_collider.0 / 2.0;
+
+        let player_x_overlapping_above =
+            player_x_top >= cell_object_x_top && cell_object_x_top >= player_x_bottom;
+        let player_x_overlapping_below =
+            player_x_top >= cell_object_x_bottom && cell_object_x_bottom >= player_x_bottom;
+
+        let player_x_overlapping = player_x_overlapping_above || player_x_overlapping_below;
+
+        // z
+        let player_z_top = player_gl_translation.z + player_collider.2 / 2.0;
+        let player_z_bottom = player_gl_translation.z - player_collider.2 / 2.0;
+        let cell_object_z_top = cell_object_gl_translation.z + cell_object_collider.2 / 2.0;
+        let cell_object_z_bottom = cell_object_gl_translation.z - cell_object_collider.2 / 2.0;
+
+        let player_z_overlapping_above =
+            player_z_top >= cell_object_z_top && cell_object_z_top >= player_z_bottom;
+        let player_z_overlapping_below =
+            player_z_top >= cell_object_z_bottom && cell_object_z_bottom >= player_z_bottom;
+
+        let player_z_overlapping = player_z_overlapping_above || player_z_overlapping_below;
+
+        if player_x_overlapping && player_z_overlapping {
+            println!("overlapping");
+        }
+    }
+}
+
 fn main() {
     assert_eq!(
         CHUNK_SIZE % CELL_SIZE,
@@ -287,12 +345,13 @@ fn main() {
     }
 
     App::new()
+        .register_type::<Collider>()
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
             WorldInspectorPlugin::new(),
         ))
         .add_systems(Startup, (spawn_chunks, spawn_camera, spawn_player))
-        .add_systems(Update, player_movement)
+        .add_systems(Update, (player_movement, confine_player_movement))
         .run();
 }
