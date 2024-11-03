@@ -1,32 +1,39 @@
-use crate::Cell;
+use crate::maze::Maze;
 
+use chrono::Utc;
 use std::{fs, io::Error};
 
-pub fn write_maze_to_html_file(
-    maze: &Vec<Vec<Cell>>,
+pub fn write_mazes_to_html_file(
+    mazes: &Vec<Maze>,
     output_path: impl Into<String>,
 ) -> Result<(), Error> {
-    let mut cells = vec![];
+    let mut maze_elements = vec![];
 
-    for row in maze {
-        for cell in row {
-            let mut classes = vec![];
+    for maze in mazes {
+        let mut cells = vec![];
 
-            if cell.wall_top {
-                classes.push("top");
-            }
-            if cell.wall_bottom {
-                classes.push("bottom");
-            }
-            if cell.wall_left {
-                classes.push("left");
-            }
-            if cell.wall_right {
-                classes.push("right");
-            }
+        for row in maze {
+            for cell in row {
+                let mut classes = vec![];
 
-            cells.push(format!(r#"<div class="cell {}"></div>"#, classes.join(" ")));
+                if cell.wall_top {
+                    classes.push("top");
+                }
+                if cell.wall_bottom {
+                    classes.push("bottom");
+                }
+                if cell.wall_left {
+                    classes.push("left");
+                }
+                if cell.wall_right {
+                    classes.push("right");
+                }
+
+                cells.push(format!(r#"<div class="cell {}"></div>"#, classes.join(" ")));
+            }
         }
+
+        maze_elements.push(format!(r#"<div class="maze">{}</div>"#, cells.join("\n")));
     }
 
     let html = format!(
@@ -60,12 +67,18 @@ pub fn write_maze_to_html_file(
                         font-size: large;
                     }}
 
-                    #maze {{
+                    #chunks {{
+                        display: inline-grid;
+                        grid-template-rows: repeat(3, 1fr);
+                        grid-template-columns: repeat(3, 1fr);
+                        margin: 30px;
+                    }}
+
+                    .maze {{
                         display: inline-grid;
                         grid-template-rows: repeat({}, 1fr);
                         grid-template-columns: repeat({}, 1fr);
-                        border: solid 2px black;
-                        margin: 30px;
+                        margin: 15px;
                     }}
 
                     .cell {{
@@ -92,18 +105,18 @@ pub fn write_maze_to_html_file(
             </head>
 
             <body>
-                <div>
-                    <div id="maze">
-                        {}
-                    </div>
+                <p>Generated at: {}</p>
+                <div id="chunks">
+                    {}
                 </div>
             </body>
 
             </html>
         "#,
-        maze.len(),    // calculate maze height
-        maze[0].len(), // calculate maze width
-        cells.join("\n"),
+        mazes[0].len(),    // calculate maze height
+        mazes[0][0].len(), // calculate maze width
+        Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        maze_elements.join("\n"),
     );
 
     fs::write(output_path.into(), html.trim())

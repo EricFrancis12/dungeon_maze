@@ -1,12 +1,12 @@
 use crate::{
-    utils::rng::{seed_from_seed_str, seed_to_rng},
+    utils::rng::{rng_from_str, seed_to_rng},
     Cell,
 };
 
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashSet;
 
-type Maze = Vec<Vec<Cell>>;
+pub type Maze = Vec<Vec<Cell>>;
 
 pub fn calc_maze_size(chunk_size: f32, cell_size: f32) -> usize {
     (chunk_size / cell_size) as usize
@@ -17,15 +17,26 @@ pub fn calc_maze_dims(chunk_size: f32, cell_size: f32) -> (usize, usize) {
     (maze_size, maze_size) // (height, width)
 }
 
-pub fn maze_from_seed(seed: u32, height: usize, width: usize) -> Maze {
+fn maze_from_seed(seed: u32, height: usize, width: usize) -> Maze {
     let mut rng = seed_to_rng(seed);
     maze_from_rng(&mut rng, height, width)
 }
 
 pub fn maze_from_xyz_seed(x: i64, y: i64, z: i64, seed: u32, height: usize, width: usize) -> Maze {
-    let seed = seed_from_seed_str(format!("{}_{}_{}_{}", seed, x, y, z));
-    let mut rng = seed_to_rng(seed);
-    maze_from_rng(&mut rng, height, width)
+    let mut rng = rng_from_str(format!("{}_{}_{}_{}", seed, x, y, z));
+    let mut maze = maze_from_rng(&mut rng, height, width);
+
+    // TODO: use chunk (x,y,z) to proc-gen matching exits between edges of chunks
+
+    let h = height / 2;
+    let w = width / 2;
+
+    maze[h][0].wall_left = false;
+    maze[h][height - 1].wall_right = false;
+    maze[0][w].wall_top = false;
+    maze[height - 1][w].wall_bottom = false;
+
+    maze
 }
 
 pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {

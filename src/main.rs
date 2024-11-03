@@ -4,14 +4,14 @@ mod utils;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_third_person_camera::*;
-use maze::{calc_maze_dims, maze_from_seed, maze_from_xyz_seed};
+use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{
     borrow::Cow,
     env,
     f32::consts::PI,
     fmt::{Display, Formatter, Result},
 };
-use utils::dev::write_maze_to_html_file;
+use utils::dev::write_mazes_to_html_file;
 
 const CHUNK_SIZE: f32 = 16.0;
 const CELL_SIZE: f32 = 4.0;
@@ -25,6 +25,18 @@ const CAMERA_Z: f32 = 5.0;
 
 const SEED: u32 = 1234;
 const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
+
+const CHUNKS_XYZ: [(i64, i64, i64); 9] = [
+    (-1, 0, -1),
+    (-1, 0, 0),
+    (-1, 0, 1),
+    (0, 0, -1),
+    (0, 0, 0),
+    (0, 0, 1),
+    (1, 0, -1),
+    (1, 0, 0),
+    (1, 0, 1),
+];
 
 #[derive(Debug)]
 enum ArgName {
@@ -67,19 +79,7 @@ fn spawn_chunks(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let chunks_xyz: [(i64, i64, i64); 9] = [
-        (-1, 0, -1),
-        (-1, 0, 0),
-        (-1, 0, 1),
-        (0, 0, -1),
-        (0, 0, 0),
-        (0, 0, 1),
-        (1, 0, -1),
-        (1, 0, 0),
-        (1, 0, 1),
-    ];
-
-    for (chunk_x, chunk_y, chunk_z) in chunks_xyz {
+    for (chunk_x, chunk_y, chunk_z) in CHUNKS_XYZ {
         let chunk_bundle = (
             PbrBundle {
                 mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
@@ -388,8 +388,14 @@ fn main() {
 
     if args.contains(&ArgName::Html.to_string()) {
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let maze = &maze_from_seed(SEED, height, width);
-        write_maze_to_html_file(maze, HTML_FILE_OUTPUT_PATH).unwrap();
+
+        let mut mazes = vec![];
+        for (chunk_x, chunk_y, chunk_z) in CHUNKS_XYZ {
+            let maze = maze_from_xyz_seed(chunk_x, chunk_y, chunk_z, SEED, height, width);
+            mazes.push(maze);
+        }
+
+        write_mazes_to_html_file(&mazes, HTML_FILE_OUTPUT_PATH).unwrap();
     }
 
     App::new()
