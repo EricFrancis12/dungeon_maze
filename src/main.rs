@@ -7,14 +7,16 @@ use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{
     borrow::Cow,
+    collections::HashSet,
     env,
     f32::consts::PI,
     fmt::{Display, Formatter, Result},
 };
 use utils::dev::write_mazes_to_html_file;
 
-const CHUNK_SIZE: f32 = 16.0;
 const CELL_SIZE: f32 = 4.0;
+const CHUNK_SIZE: f32 = 16.0;
+const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
 const DEFAULT_PLAYER_SPEED: f32 = 4.0;
@@ -25,18 +27,6 @@ const CAMERA_Z: f32 = 5.0;
 
 const SEED: u32 = 1234;
 const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
-
-const CHUNKS_XYZ: [(i64, i64, i64); 9] = [
-    (-1, 0, -1),
-    (-1, 0, 0),
-    (-1, 0, 1),
-    (0, 0, -1),
-    (0, 0, 0),
-    (0, 0, 1),
-    (1, 0, -1),
-    (1, 0, 0),
-    (1, 0, 1),
-];
 
 #[derive(Debug)]
 enum ArgName {
@@ -51,6 +41,14 @@ impl Display for ArgName {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, States)]
+struct ActiveChunk(i64, i64, i64);
+
+#[derive(Event)]
+struct ActiveChunkChange {
+    value: ActiveChunk,
+}
+
 #[derive(Component)]
 struct Player;
 
@@ -58,7 +56,7 @@ struct Player;
 struct Speed(f32);
 
 #[derive(Component)]
-struct Chunk;
+struct Chunk(i64, i64, i64);
 
 #[derive(Clone, Component, Debug, Default)]
 pub struct Cell {
@@ -74,117 +72,228 @@ struct CellObject;
 #[derive(Component, Reflect)]
 struct Collider(f32, f32, f32);
 
-fn spawn_chunks(
+fn make_neighboring_xz_chunks(chunk: (i64, i64, i64)) -> [(i64, i64, i64); 9] {
+    let (x, y, z) = chunk;
+    [
+        (x - 1, y, z - 1),
+        (x - 1, y, z),
+        (x - 1, y, z + 1),
+        (x, y, z - 1),
+        (x, y, z), // active chunk in the center, with neightbors surrounding it
+        (x, y, z + 1),
+        (x + 1, y, z - 1),
+        (x + 1, y, z),
+        (x + 1, y, z + 1),
+    ]
+}
+
+fn spawn_initial_chunks(
     mut commands: Commands,
+    active_chunk: Res<State<ActiveChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (chunk_x, chunk_y, chunk_z) in CHUNKS_XYZ {
-        let chunk_bundle = (
-            PbrBundle {
-                mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
-                material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
-                transform: Transform::from_xyz(
-                    chunk_x as f32 * CHUNK_SIZE,
-                    chunk_y as f32 * CHUNK_SIZE,
-                    chunk_z as f32 * CHUNK_SIZE,
-                ),
-                ..default()
-            },
-            Chunk,
-            Name::new(format!("Chunk ({},{},{})", chunk_x, chunk_y, chunk_z)),
-        );
+    let chunks = make_neighboring_xz_chunks((active_chunk.0, active_chunk.1, active_chunk.2));
+    for xyz in chunks {
+        spawn_new_chunk_bundle(xyz, &mut commands, &mut meshes, &mut materials);
+    }
+}
 
-        commands.spawn(chunk_bundle).with_children(|parent| {
-            // One maze is created per chunk
-            let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-            let maze = &maze_from_xyz_seed(chunk_x, 0, chunk_z, SEED, height, width);
+fn manage_active_chunk(
+    mut active_chunk_change_event_writer: EventWriter<ActiveChunkChange>,
+    player_query: Query<&GlobalTransform, With<Player>>,
+    active_chunk: Res<State<ActiveChunk>>,
+) {
+    let player_gl_transform = player_query.get_single().expect("Error retrieving player:");
+    let player_gl_translation = player_gl_transform.translation();
 
-            for (x, row) in maze.iter().enumerate() {
-                for (z, cell) in row.iter().enumerate() {
-                    let cell_bundle = (
-                        PbrBundle {
-                            mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                            material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
-                            transform: Transform::from_xyz(
-                                calc_transform_pos(x),
-                                0.0,
-                                calc_transform_pos(z),
-                            ),
-                            ..default()
-                        },
-                        cell.clone(),
-                        Name::new(format!("Cell ({},{})", x, z)),
-                    );
-                    parent.spawn(cell_bundle).with_children(|grandparent| {
-                        // Top wall
-                        if cell.wall_top {
-                            let mut transform =
-                                Transform::from_xyz(CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                            let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
-                            transform.rotate(z_90_deg_rotation);
+    let mut chunk = active_chunk.clone();
 
-                            grandparent.spawn(new_cell_wall_bundle(
-                                "Top Wall",
-                                transform,
-                                Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
-                                &mut meshes,
-                                &mut materials,
-                            ));
-                        }
+    let half_chunk_size = CHUNK_SIZE / 2.0;
 
-                        // Left wall
-                        if cell.wall_left {
-                            let mut transform =
-                                Transform::from_xyz(0.0, CELL_SIZE / 2.0, CELL_SIZE / 2.0);
-                            let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
-                            transform.rotate(x_270_deg_rotation);
+    let x_chunk_size = active_chunk.0 as f32 * CHUNK_SIZE;
+    let x_min_crossed = player_gl_translation.x < x_chunk_size - half_chunk_size;
+    let x_max_crossed = player_gl_translation.x > x_chunk_size + half_chunk_size;
 
-                            grandparent.spawn(new_cell_wall_bundle(
-                                "Left Wall",
-                                transform,
-                                Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
-                                &mut meshes,
-                                &mut materials,
-                            ));
-                        }
+    if x_min_crossed {
+        // Spawn new chunk column at far left, and despawn right-most chunk column
+        chunk.0 -= 1;
+    } else if x_max_crossed {
+        // Spawn new chunk column at far right, and despawn left-most chunk column
+        chunk.0 += 1;
+    }
 
-                        // Bottom wall
-                        if cell.wall_bottom {
-                            let mut transform =
-                                Transform::from_xyz(-CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                            let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
-                            transform.rotate(z_270_deg_rotation);
+    let z_chunk_size = active_chunk.2 as f32 * CHUNK_SIZE;
+    let z_min_crossed = player_gl_translation.z < z_chunk_size - half_chunk_size;
+    let z_max_crossed = player_gl_translation.z > z_chunk_size + half_chunk_size;
 
-                            grandparent.spawn(new_cell_wall_bundle(
-                                "Bottom Wall",
-                                transform,
-                                Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
-                                &mut meshes,
-                                &mut materials,
-                            ));
-                        }
+    if z_min_crossed {
+        // Spawn new chunk row at far top, and despawn lowest chunk row
+        chunk.2 -= 1;
+    } else if z_max_crossed {
+        // Spawn new chunk row at far bottom, and despawn highest chunk row
+        chunk.2 += 1;
+    }
 
-                        // Right wall
-                        if cell.wall_right {
-                            let mut transform =
-                                Transform::from_xyz(0.0, CELL_SIZE / 2.0, -CELL_SIZE / 2.0);
-                            let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
-                            transform.rotate(x_90_deg_rotation);
+    if x_min_crossed || x_max_crossed || z_min_crossed || z_max_crossed {
+        // TODO: bugfix multiple ActiveChunkChange events being sent at one time:
+        active_chunk_change_event_writer.send(ActiveChunkChange { value: chunk });
+    }
+}
 
-                            grandparent.spawn(new_cell_wall_bundle(
-                                "Right Wall",
-                                transform,
-                                Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
-                                &mut meshes,
-                                &mut materials,
-                            ));
-                        }
-                    });
+fn handle_active_chunk_change(
+    mut commands: Commands,
+    chunks_query: Query<(Entity, &Chunk)>,
+    mut active_chunk_change_event_reader: EventReader<ActiveChunkChange>,
+    mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for event in active_chunk_change_event_reader.read() {
+        let new_active_chunk = event.value;
+
+        let new_chunks = make_neighboring_xz_chunks((
+            new_active_chunk.0,
+            new_active_chunk.1,
+            new_active_chunk.2,
+        ));
+
+        let mut chunks_to_spawn: HashSet<(i64, i64, i64)> = HashSet::new();
+
+        // Determine what spawned chunks should be despawned
+        'outer: for (chunk_entity, chunk) in chunks_query.iter() {
+            for (x, y, z) in new_chunks {
+                // If found matching chunks, do nothing
+                if chunk.0 == x && chunk.1 == y && chunk.2 == z {
+                    continue 'outer;
+                } else {
+                    chunks_to_spawn.insert((x, y, z));
                 }
             }
-        });
+
+            // If chunk was not found among the new chunks, despawn it
+            commands.entity(chunk_entity).despawn_recursive();
+        }
+
+        // Spawn remaining chunks
+        for xyz in chunks_to_spawn {
+            spawn_new_chunk_bundle(xyz, &mut commands, &mut meshes, &mut materials);
+        }
+
+        next_active_chunk.set(event.value);
     }
+}
+
+fn spawn_new_chunk_bundle(
+    (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
+    commands: &mut Commands,
+    mut meshes: &mut ResMut<Assets<Mesh>>,
+    mut materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    let chunk_bundle = (
+        PbrBundle {
+            mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
+            material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
+            transform: Transform::from_xyz(
+                chunk_x as f32 * CHUNK_SIZE,
+                chunk_y as f32 * CHUNK_SIZE,
+                chunk_z as f32 * CHUNK_SIZE,
+            ),
+            ..default()
+        },
+        Chunk(chunk_x, chunk_y, chunk_z),
+        Name::new(format!("Chunk ({},{},{})", chunk_x, chunk_y, chunk_z)),
+    );
+
+    commands.spawn(chunk_bundle).with_children(|parent| {
+        // One maze is created per chunk
+        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
+        let maze = &maze_from_xyz_seed(chunk_x, 0, chunk_z, SEED, height, width);
+
+        for (x, row) in maze.iter().enumerate() {
+            for (z, cell) in row.iter().enumerate() {
+                let cell_bundle = (
+                    PbrBundle {
+                        mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                        material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
+                        transform: Transform::from_xyz(
+                            calc_transform_pos(x),
+                            0.0,
+                            calc_transform_pos(z),
+                        ),
+                        ..default()
+                    },
+                    cell.clone(),
+                    Name::new(format!("Cell ({},{})", x, z)),
+                );
+                parent.spawn(cell_bundle).with_children(|grandparent| {
+                    // Top wall
+                    if cell.wall_top {
+                        let mut transform =
+                            Transform::from_xyz(CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
+                        let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
+                        transform.rotate(z_90_deg_rotation);
+
+                        grandparent.spawn(new_cell_wall_bundle(
+                            "Top Wall",
+                            transform,
+                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
+                            &mut meshes,
+                            &mut materials,
+                        ));
+                    }
+
+                    // Left wall
+                    if cell.wall_left {
+                        let mut transform =
+                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, CELL_SIZE / 2.0);
+                        let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
+                        transform.rotate(x_270_deg_rotation);
+
+                        grandparent.spawn(new_cell_wall_bundle(
+                            "Left Wall",
+                            transform,
+                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
+                            &mut meshes,
+                            &mut materials,
+                        ));
+                    }
+
+                    // Bottom wall
+                    if cell.wall_bottom {
+                        let mut transform =
+                            Transform::from_xyz(-CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
+                        let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
+                        transform.rotate(z_270_deg_rotation);
+
+                        grandparent.spawn(new_cell_wall_bundle(
+                            "Bottom Wall",
+                            transform,
+                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
+                            &mut meshes,
+                            &mut materials,
+                        ));
+                    }
+
+                    // Right wall
+                    if cell.wall_right {
+                        let mut transform =
+                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, -CELL_SIZE / 2.0);
+                        let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
+                        transform.rotate(x_90_deg_rotation);
+
+                        grandparent.spawn(new_cell_wall_bundle(
+                            "Right Wall",
+                            transform,
+                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
+                            &mut meshes,
+                            &mut materials,
+                        ));
+                    }
+                });
+            }
+        }
+    });
 }
 
 fn new_cell_wall_bundle(
@@ -388,9 +497,10 @@ fn main() {
 
     if args.contains(&ArgName::Html.to_string()) {
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
+        let chunks = make_neighboring_xz_chunks(DEFAULT_CHUNK_XYZ);
 
         let mut mazes = vec![];
-        for (chunk_x, chunk_y, chunk_z) in CHUNKS_XYZ {
+        for (chunk_x, chunk_y, chunk_z) in chunks {
             let maze = maze_from_xyz_seed(chunk_x, chunk_y, chunk_z, SEED, height, width);
             mazes.push(maze);
         }
@@ -405,7 +515,16 @@ fn main() {
             ThirdPersonCameraPlugin,
             WorldInspectorPlugin::new(),
         ))
-        .add_systems(Startup, (spawn_chunks, spawn_camera, spawn_player))
-        .add_systems(Update, player_movement)
+        .init_state::<ActiveChunk>()
+        .add_event::<ActiveChunkChange>()
+        .add_systems(Startup, (spawn_initial_chunks, spawn_camera, spawn_player))
+        .add_systems(
+            Update,
+            (
+                player_movement,
+                manage_active_chunk,
+                handle_active_chunk_change,
+            ),
+        )
         .run();
 }
