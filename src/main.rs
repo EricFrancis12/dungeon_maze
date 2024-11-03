@@ -4,7 +4,7 @@ mod utils;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_third_person_camera::*;
-use maze::{calc_maze_dims, maze_from_seed};
+use maze::{calc_maze_dims, maze_from_seed, maze_from_xyz_seed};
 use std::{
     borrow::Cow,
     env,
@@ -67,105 +67,124 @@ fn spawn_chunks(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let chunk_bundle = (
-        PbrBundle {
-            mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
-            material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
-            ..default()
-        },
-        Chunk,
-        Name::new("Chunk"),
-    );
+    let chunks_xyz: [(i64, i64, i64); 9] = [
+        (-1, 0, -1),
+        (-1, 0, 0),
+        (-1, 0, 1),
+        (0, 0, -1),
+        (0, 0, 0),
+        (0, 0, 1),
+        (1, 0, -1),
+        (1, 0, 0),
+        (1, 0, 1),
+    ];
 
-    commands.spawn(chunk_bundle).with_children(|parent| {
-        // One maze is created per chunk
-        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let maze = &maze_from_seed(SEED, height, width);
+    for (chunk_x, chunk_y, chunk_z) in chunks_xyz {
+        let chunk_bundle = (
+            PbrBundle {
+                mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
+                material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
+                transform: Transform::from_xyz(
+                    chunk_x as f32 * CHUNK_SIZE,
+                    chunk_y as f32 * CHUNK_SIZE,
+                    chunk_z as f32 * CHUNK_SIZE,
+                ),
+                ..default()
+            },
+            Chunk,
+            Name::new(format!("Chunk ({},{},{})", chunk_x, chunk_y, chunk_z)),
+        );
 
-        for (x, row) in maze.iter().enumerate() {
-            for (z, cell) in row.iter().enumerate() {
-                let cell_bundle = (
-                    PbrBundle {
-                        mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                        material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
-                        transform: Transform::from_xyz(
-                            calc_transform_pos(x),
-                            0.0,
-                            calc_transform_pos(z),
-                        ),
-                        ..default()
-                    },
-                    cell.clone(),
-                    Name::new(format!("Cell ({},{})", x, z)),
-                );
-                parent.spawn(cell_bundle).with_children(|grandparent| {
-                    // Top wall
-                    if cell.wall_top {
-                        let mut transform =
-                            Transform::from_xyz(CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                        let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
-                        transform.rotate(z_90_deg_rotation);
+        commands.spawn(chunk_bundle).with_children(|parent| {
+            // One maze is created per chunk
+            let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
+            let maze = &maze_from_xyz_seed(chunk_x, 0, chunk_z, SEED, height, width);
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Top Wall",
-                            transform,
-                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
-                            &mut meshes,
-                            &mut materials,
-                        ));
-                    }
+            for (x, row) in maze.iter().enumerate() {
+                for (z, cell) in row.iter().enumerate() {
+                    let cell_bundle = (
+                        PbrBundle {
+                            mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                            material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
+                            transform: Transform::from_xyz(
+                                calc_transform_pos(x),
+                                0.0,
+                                calc_transform_pos(z),
+                            ),
+                            ..default()
+                        },
+                        cell.clone(),
+                        Name::new(format!("Cell ({},{})", x, z)),
+                    );
+                    parent.spawn(cell_bundle).with_children(|grandparent| {
+                        // Top wall
+                        if cell.wall_top {
+                            let mut transform =
+                                Transform::from_xyz(CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
+                            let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
+                            transform.rotate(z_90_deg_rotation);
 
-                    // Left wall
-                    if cell.wall_left {
-                        let mut transform =
-                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, CELL_SIZE / 2.0);
-                        let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
-                        transform.rotate(x_270_deg_rotation);
+                            grandparent.spawn(new_cell_wall_bundle(
+                                "Top Wall",
+                                transform,
+                                Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
+                                &mut meshes,
+                                &mut materials,
+                            ));
+                        }
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Left Wall",
-                            transform,
-                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
-                            &mut meshes,
-                            &mut materials,
-                        ));
-                    }
+                        // Left wall
+                        if cell.wall_left {
+                            let mut transform =
+                                Transform::from_xyz(0.0, CELL_SIZE / 2.0, CELL_SIZE / 2.0);
+                            let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
+                            transform.rotate(x_270_deg_rotation);
 
-                    // Bottom wall
-                    if cell.wall_bottom {
-                        let mut transform =
-                            Transform::from_xyz(-CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                        let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
-                        transform.rotate(z_270_deg_rotation);
+                            grandparent.spawn(new_cell_wall_bundle(
+                                "Left Wall",
+                                transform,
+                                Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
+                                &mut meshes,
+                                &mut materials,
+                            ));
+                        }
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Bottom Wall",
-                            transform,
-                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
-                            &mut meshes,
-                            &mut materials,
-                        ));
-                    }
+                        // Bottom wall
+                        if cell.wall_bottom {
+                            let mut transform =
+                                Transform::from_xyz(-CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
+                            let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
+                            transform.rotate(z_270_deg_rotation);
 
-                    // Right wall
-                    if cell.wall_right {
-                        let mut transform =
-                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, -CELL_SIZE / 2.0);
-                        let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
-                        transform.rotate(x_90_deg_rotation);
+                            grandparent.spawn(new_cell_wall_bundle(
+                                "Bottom Wall",
+                                transform,
+                                Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
+                                &mut meshes,
+                                &mut materials,
+                            ));
+                        }
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Right Wall",
-                            transform,
-                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
-                            &mut meshes,
-                            &mut materials,
-                        ));
-                    }
-                });
+                        // Right wall
+                        if cell.wall_right {
+                            let mut transform =
+                                Transform::from_xyz(0.0, CELL_SIZE / 2.0, -CELL_SIZE / 2.0);
+                            let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
+                            transform.rotate(x_90_deg_rotation);
+
+                            grandparent.spawn(new_cell_wall_bundle(
+                                "Right Wall",
+                                transform,
+                                Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
+                                &mut meshes,
+                                &mut materials,
+                            ));
+                        }
+                    });
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 fn new_cell_wall_bundle(
