@@ -17,7 +17,7 @@ const CHUNK_SIZE: f32 = 16.0;
 const CELL_SIZE: f32 = 4.0;
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 3.0;
+const DEFAULT_PLAYER_SPEED: f32 = 4.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -109,6 +109,7 @@ fn spawn_chunks(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Top Wall",
                             transform,
+                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -124,6 +125,7 @@ fn spawn_chunks(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Left Wall",
                             transform,
+                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -139,6 +141,7 @@ fn spawn_chunks(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Bottom Wall",
                             transform,
+                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -154,6 +157,7 @@ fn spawn_chunks(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Right Wall",
                             transform,
+                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -167,6 +171,7 @@ fn spawn_chunks(
 fn new_cell_wall_bundle(
     name: impl Into<Cow<'static, str>>,
     transform: Transform,
+    collider: Collider,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) -> impl Bundle {
@@ -178,7 +183,7 @@ fn new_cell_wall_bundle(
             ..default()
         },
         CellObject,
-        Collider(CELL_SIZE, 0.1, CELL_SIZE),
+        collider,
         Name::new(name),
     )
 }
@@ -217,7 +222,7 @@ fn spawn_player(
         PbrBundle {
             mesh: meshes.add(Cuboid::new(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE)),
             material: materials.add(Color::linear_rgba(0.0, 0.0, 0.3, 1.0)),
-            transform: Transform::from_xyz(0.0, PLAYER_SIZE / 2.0, 0.0),
+            transform: Transform::from_xyz(2.0, PLAYER_SIZE / 2.0, 2.0),
             ..default()
         },
         Collider(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE),
@@ -231,12 +236,15 @@ fn spawn_player(
 }
 
 fn player_movement(
+    mut player_query: Query<(&mut Transform, &GlobalTransform, &Collider, &Speed), With<Player>>,
+    cell_objects_query: Query<(&GlobalTransform, &Collider), (With<CellObject>, Without<Player>)>,
+    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut player_query: Query<(&mut Transform, &Speed), With<Player>>,
-    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
 ) {
-    for (mut player_transform, player_speed) in player_query.iter_mut() {
+    for (mut player_transform, player_gl_transform, player_collider, player_speed) in
+        player_query.iter_mut()
+    {
         let camera_transform = match camera_query.get_single() {
             Ok(ct) => ct,
             Err(err) => Err(format!("Error retrieving camera: {}", err)).unwrap(),
@@ -269,62 +277,83 @@ fn player_movement(
             direction.z += d.z;
         }
 
+        let mut player_gl_translation = player_gl_transform.translation();
         let movement = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
-        player_transform.translation += movement;
+        player_gl_translation += movement;
 
         if direction.length_squared() > 0.0 {
             player_transform.look_to(direction, Vec3::Y);
         }
+
+        for (cell_object_gl_transform, cell_object_collider) in cell_objects_query.iter() {
+            if are_colliding(
+                (&player_gl_translation, player_collider),
+                (
+                    &cell_object_gl_transform.translation(),
+                    cell_object_collider,
+                ),
+            ) {
+                return;
+            }
+        }
+
+        player_transform.translation += movement;
     }
 }
 
-fn confine_player_movement(
-    mut player_query: Query<(&mut Transform, &GlobalTransform, &Collider), With<Player>>,
-    mut cell_objects_query: Query<
-        (&GlobalTransform, &Collider),
-        (With<CellObject>, Without<Player>),
-    >,
-) {
-    let (mut player_transform, player_gl_transform, player_collider) =
-        match player_query.get_single_mut() {
-            Ok(p) => p,
-            Err(err) => Err(format!("Error retrieving player: {}", err)).unwrap(),
-        };
+fn are_colliding(e1: (&Vec3, &Collider), e2: (&Vec3, &Collider)) -> bool {
+    let (t1, c1) = e1;
+    let (t2, c2) = e2;
 
-    for (cell_object_gl_transform, cell_object_collider) in cell_objects_query.iter() {
-        let player_gl_translation = player_gl_transform.translation();
-        let cell_object_gl_translation = cell_object_gl_transform.translation();
+    // x
+    let e1_x_top = t1.x + c1.0 / 2.0;
+    let e1_x_bottom = t1.x - c1.0 / 2.0;
+    let e2_x_top = t2.x + c2.0 / 2.0;
+    let e2_x_bottom = t2.x - c2.0 / 2.0;
 
-        // x
-        let player_x_top = player_gl_translation.x + player_collider.0 / 2.0;
-        let player_x_bottom = player_gl_translation.x - player_collider.0 / 2.0;
-        let cell_object_x_top = cell_object_gl_translation.x + cell_object_collider.0 / 2.0;
-        let cell_object_x_bottom = cell_object_gl_translation.x - cell_object_collider.0 / 2.0;
+    let e1_x_overlapping_above = e1_x_top >= e2_x_top && e2_x_top >= e1_x_bottom;
+    let e2_x_overlapping_above = e1_x_top >= e2_x_bottom && e2_x_bottom >= e1_x_bottom;
+    let e1_x_overlapping_below = e2_x_top >= e1_x_top && e1_x_top >= e2_x_bottom;
+    let e2_x_overlapping_below = e2_x_top >= e1_x_bottom && e1_x_bottom >= e2_x_bottom;
 
-        let player_x_overlapping_above =
-            player_x_top >= cell_object_x_top && cell_object_x_top >= player_x_bottom;
-        let player_x_overlapping_below =
-            player_x_top >= cell_object_x_bottom && cell_object_x_bottom >= player_x_bottom;
+    let x_overlapping = e1_x_overlapping_above
+        || e2_x_overlapping_above
+        || e1_x_overlapping_below
+        || e2_x_overlapping_below;
 
-        let player_x_overlapping = player_x_overlapping_above || player_x_overlapping_below;
+    // y
+    let e1_y_top = t1.y + c1.1 / 2.0;
+    let e1_y_bottom = t1.y - c1.1 / 2.0;
+    let e2_y_top = t2.y + c2.1 / 2.0;
+    let e2_y_bottom = t2.y - c2.1 / 2.0;
 
-        // z
-        let player_z_top = player_gl_translation.z + player_collider.2 / 2.0;
-        let player_z_bottom = player_gl_translation.z - player_collider.2 / 2.0;
-        let cell_object_z_top = cell_object_gl_translation.z + cell_object_collider.2 / 2.0;
-        let cell_object_z_bottom = cell_object_gl_translation.z - cell_object_collider.2 / 2.0;
+    let e1_y_overlapping_above = e1_y_top >= e2_y_top && e2_y_top >= e1_y_bottom;
+    let e2_y_overlapping_above = e1_y_top >= e2_y_bottom && e2_y_bottom >= e1_y_bottom;
+    let e1_y_overlapping_below = e2_y_top >= e1_y_top && e1_y_top >= e2_y_bottom;
+    let e2_y_overlapping_below = e2_y_top >= e1_y_bottom && e1_y_bottom >= e2_y_bottom;
 
-        let player_z_overlapping_above =
-            player_z_top >= cell_object_z_top && cell_object_z_top >= player_z_bottom;
-        let player_z_overlapping_below =
-            player_z_top >= cell_object_z_bottom && cell_object_z_bottom >= player_z_bottom;
+    let y_overlapping = e1_y_overlapping_above
+        || e2_y_overlapping_above
+        || e1_y_overlapping_below
+        || e2_y_overlapping_below;
 
-        let player_z_overlapping = player_z_overlapping_above || player_z_overlapping_below;
+    // z
+    let e1_z_top = t1.z + c1.2 / 2.0;
+    let e1_z_bottom = t1.z - c1.2 / 2.0;
+    let e2_z_top = t2.z + c2.2 / 2.0;
+    let e2_z_bottom = t2.z - c2.2 / 2.0;
 
-        if player_x_overlapping && player_z_overlapping {
-            println!("overlapping");
-        }
-    }
+    let e1_z_overlapping_above = e1_z_top >= e2_z_top && e2_z_top >= e1_z_bottom;
+    let e2_z_overlapping_above = e1_z_top >= e2_z_bottom && e2_z_bottom >= e1_z_bottom;
+    let e1_z_overlapping_below = e2_z_top >= e1_z_top && e1_z_top >= e2_z_bottom;
+    let e2_z_overlapping_below = e2_z_top >= e1_z_bottom && e1_z_bottom >= e2_z_bottom;
+
+    let z_overlapping = e1_z_overlapping_above
+        || e2_z_overlapping_above
+        || e1_z_overlapping_below
+        || e2_z_overlapping_below;
+
+    x_overlapping && y_overlapping && z_overlapping
 }
 
 fn main() {
@@ -352,6 +381,6 @@ fn main() {
             WorldInspectorPlugin::new(),
         ))
         .add_systems(Startup, (spawn_chunks, spawn_camera, spawn_player))
-        .add_systems(Update, (player_movement, confine_player_movement))
+        .add_systems(Update, player_movement)
         .run();
 }
