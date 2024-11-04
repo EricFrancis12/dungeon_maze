@@ -15,7 +15,7 @@ use std::{
 use utils::dev::write_mazes_to_html_file;
 
 const CELL_SIZE: f32 = 4.0;
-const CHUNK_SIZE: f32 = 16.0;
+const CHUNK_SIZE: f32 = 12.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
@@ -76,25 +76,11 @@ struct CellObject;
 #[derive(Component, Reflect)]
 struct Collider(f32, f32, f32);
 
-fn make_neighboring_xz_chunks(chunk: (i64, i64, i64)) -> [(i64, i64, i64); 11] {
+fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
     let (x, y, z) = chunk;
-    [
-        // active chunk
-        (x, y, z),
-        // x and z neighbors
-        (x - 1, y, z - 1),
-        (x - 1, y, z),
-        (x - 1, y, z + 1),
-        (x, y, z - 1),
-        (x, y, z + 1),
-        (x + 1, y, z - 1),
-        (x + 1, y, z),
-        (x + 1, y, z + 1),
-        // y neighbor above
-        (x, y + 1, z),
-        // y neighbor below
-        (x, y - 1, z),
-    ]
+    (x - 1..=x + 1)
+        .flat_map(|i| (y - 1..=y + 1).flat_map(move |j| (z - 1..=z + 1).map(move |k| (i, j, k))))
+        .collect()
 }
 
 fn spawn_initial_chunks(
@@ -103,7 +89,7 @@ fn spawn_initial_chunks(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let chunks = make_neighboring_xz_chunks((active_chunk.0, active_chunk.1, active_chunk.2));
+    let chunks = make_neighboring_xyz_chunks((active_chunk.0, active_chunk.1, active_chunk.2));
     for xyz in chunks {
         spawn_new_chunk_bundle(xyz, &mut commands, &mut meshes, &mut materials);
     }
@@ -162,7 +148,7 @@ fn handle_active_chunk_change(
         let new_active_chunk = event.value;
         next_active_chunk.set(event.value);
 
-        let new_chunks = make_neighboring_xz_chunks((
+        let new_chunks = make_neighboring_xyz_chunks((
             new_active_chunk.0,
             new_active_chunk.1,
             new_active_chunk.2,
@@ -212,7 +198,7 @@ fn spawn_new_chunk_bundle(
     commands.spawn(chunk_bundle).with_children(|parent| {
         // One maze is created per chunk
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let maze = &maze_from_xyz_seed(chunk_x, 0, chunk_z, SEED, height, width);
+        let maze = &maze_from_xyz_seed(chunk_x, chunk_y, chunk_z, SEED, height, width);
 
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
@@ -236,6 +222,7 @@ fn spawn_new_chunk_bundle(
                                 material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
                                 ..default()
                             },
+                            CellObject,
                             Name::new("Floor"),
                         ));
                     }
@@ -254,6 +241,7 @@ fn spawn_new_chunk_bundle(
                                 transform,
                                 ..default()
                             },
+                            CellObject,
                             Name::new("Ceiling"),
                         ));
                     }
@@ -531,7 +519,7 @@ fn main() {
 
     if args.contains(&ArgName::Html.to_string()) {
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let chunks = make_neighboring_xz_chunks(DEFAULT_CHUNK_XYZ);
+        let chunks = make_neighboring_xyz_chunks(DEFAULT_CHUNK_XYZ);
 
         let mut mazes = vec![];
         for (chunk_x, chunk_y, chunk_z) in chunks {
