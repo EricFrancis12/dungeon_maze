@@ -136,7 +136,6 @@ fn manage_active_chunk(
     }
 
     if x_min_crossed || x_max_crossed || z_min_crossed || z_max_crossed {
-        // TODO: bugfix multiple ActiveChunkChange events being sent at one time:
         active_chunk_change_event_writer.send(ActiveChunkChange { value: chunk });
     }
 }
@@ -151,6 +150,7 @@ fn handle_active_chunk_change(
 ) {
     for event in active_chunk_change_event_reader.read() {
         let new_active_chunk = event.value;
+        next_active_chunk.set(event.value);
 
         let new_chunks = make_neighboring_xz_chunks((
             new_active_chunk.0,
@@ -158,29 +158,23 @@ fn handle_active_chunk_change(
             new_active_chunk.2,
         ));
 
-        let mut chunks_to_spawn: HashSet<(i64, i64, i64)> = HashSet::new();
+        let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
-        // Determine what spawned chunks should be despawned
-        'outer: for (chunk_entity, chunk) in chunks_query.iter() {
-            for (x, y, z) in new_chunks {
-                // If found matching chunks, do nothing
-                if chunk.0 == x && chunk.1 == y && chunk.2 == z {
-                    continue 'outer;
-                } else {
-                    chunks_to_spawn.insert((x, y, z));
-                }
+        // Despawn chunks that are not in the new chunks
+        for (chunk_entity, chunk) in chunks_query.iter() {
+            let xyz = (chunk.0, chunk.1, chunk.2);
+            if !new_chunks.contains(&xyz) {
+                commands.entity(chunk_entity).despawn_recursive();
             }
-
-            // If chunk was not found among the new chunks, despawn it
-            commands.entity(chunk_entity).despawn_recursive();
+            existing_chunks.insert(xyz);
         }
 
-        // Spawn remaining chunks
-        for xyz in chunks_to_spawn {
-            spawn_new_chunk_bundle(xyz, &mut commands, &mut meshes, &mut materials);
+        // Spawn new chunks that are not currently existing
+        for (x, y, z) in new_chunks {
+            if !existing_chunks.contains(&(x, y, z)) {
+                spawn_new_chunk_bundle((x, y, z), &mut commands, &mut meshes, &mut materials);
+            }
         }
-
-        next_active_chunk.set(event.value);
     }
 }
 
