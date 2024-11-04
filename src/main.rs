@@ -145,34 +145,49 @@ fn manage_active_chunk(
     let player_gl_translation = player_gl_transform.translation();
 
     let mut chunk = active_chunk.clone();
-
     let half_chunk_size = CHUNK_SIZE / 2.0;
+    let half_cell_size = CELL_SIZE / 2.0;
 
+    // x
     let x_chunk_size = active_chunk.0 as f32 * CHUNK_SIZE;
     let x_min_crossed = player_gl_translation.x < x_chunk_size - half_chunk_size;
     let x_max_crossed = player_gl_translation.x > x_chunk_size + half_chunk_size;
 
     if x_min_crossed {
-        // Spawn new chunk column at far left, and despawn right-most chunk column
         chunk.0 -= 1;
     } else if x_max_crossed {
-        // Spawn new chunk column at far right, and despawn left-most chunk column
         chunk.0 += 1;
     }
 
+    // y
+    let y_chunk_size = active_chunk.1 as f32 * CELL_SIZE;
+    let y_min_crossed = player_gl_translation.y < y_chunk_size - half_cell_size;
+    let y_max_crossed = player_gl_translation.y > y_chunk_size + half_cell_size;
+
+    if y_min_crossed {
+        chunk.1 -= 1;
+    } else if y_max_crossed {
+        chunk.1 += 1;
+    }
+
+    // z
     let z_chunk_size = active_chunk.2 as f32 * CHUNK_SIZE;
     let z_min_crossed = player_gl_translation.z < z_chunk_size - half_chunk_size;
     let z_max_crossed = player_gl_translation.z > z_chunk_size + half_chunk_size;
 
     if z_min_crossed {
-        // Spawn new chunk row at far top, and despawn lowest chunk row
         chunk.2 -= 1;
     } else if z_max_crossed {
-        // Spawn new chunk row at far bottom, and despawn highest chunk row
         chunk.2 += 1;
     }
 
-    if x_min_crossed || x_max_crossed || z_min_crossed || z_max_crossed {
+    if x_min_crossed
+        || x_max_crossed
+        || y_min_crossed
+        || y_max_crossed
+        || z_min_crossed
+        || z_max_crossed
+    {
         active_chunk_change_event_writer.send(ActiveChunkChange { value: chunk });
     }
 }
