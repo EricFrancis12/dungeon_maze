@@ -19,13 +19,14 @@ const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 4.0;
+const DEFAULT_PLAYER_SPEED: f32 = 5.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
 const CAMERA_Z: f32 = 5.0;
 const CAMERA_ZOOM_MIN: f32 = 1.0;
 const CAMERA_ZOOM_MAX: f32 = 1000.0;
+const CAMERA_SENSITIVITY: f32 = 2.0;
 
 const SEED: u32 = 1234;
 const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
@@ -441,6 +442,10 @@ fn spawn_camera(mut commands: Commands) {
         },
         ThirdPersonCamera {
             zoom: Zoom::new(CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX),
+            sensitivity: Vec2 {
+                x: CAMERA_SENSITIVITY,
+                y: CAMERA_SENSITIVITY,
+            },
             ..default()
         },
         Name::new("Camera"),
