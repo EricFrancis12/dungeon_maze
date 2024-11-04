@@ -15,7 +15,7 @@ use std::{
 use utils::dev::write_mazes_to_html_file;
 
 const CELL_SIZE: f32 = 4.0;
-const CHUNK_SIZE: f32 = 12.0;
+const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
@@ -387,8 +387,11 @@ fn spawn_player(
 
 fn player_movement(
     mut player_query: Query<(&mut Transform, &GlobalTransform, &Collider, &Speed), With<Player>>,
+    chunks_query: Query<(&Chunk, &Children), Without<Player>>,
+    cells_query: Query<&Children, (With<Cell>, Without<Player>)>,
     cell_objects_query: Query<(&GlobalTransform, &Collider), (With<CellObject>, Without<Player>)>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
+    active_chunk: Res<State<ActiveChunk>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
@@ -435,15 +438,35 @@ fn player_movement(
             player_transform.look_to(direction, Vec3::Y);
         }
 
-        for (cell_object_gl_transform, cell_object_collider) in cell_objects_query.iter() {
-            if are_colliding(
-                (&player_gl_translation, player_collider),
-                (
-                    &cell_object_gl_transform.translation(),
-                    cell_object_collider,
-                ),
-            ) {
-                return;
+        for (chunk, children) in chunks_query.iter() {
+            // Check collision of only cells in the active chunk
+            if chunk.0 != active_chunk.0 || chunk.1 != active_chunk.1 || chunk.2 != active_chunk.2 {
+                continue;
+            }
+
+            for &child in children.iter() {
+                let grandchildren = match cells_query.get(child) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+
+                for &grandchild in grandchildren.iter() {
+                    let (cell_object_gl_transform, cell_object_collider) =
+                        match cell_objects_query.get(grandchild) {
+                            Ok(c) => c,
+                            Err(_) => continue,
+                        };
+
+                    if are_colliding(
+                        (&player_gl_translation, player_collider),
+                        (
+                            &cell_object_gl_transform.translation(),
+                            cell_object_collider,
+                        ),
+                    ) {
+                        return;
+                    }
+                }
             }
         }
 
