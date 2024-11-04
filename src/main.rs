@@ -108,6 +108,15 @@ struct Interactable {
     kind: InteractableKind,
 }
 
+#[derive(Component)]
+struct ChunkCellMarker {
+    chunk_x: i64,
+    chunk_y: i64,
+    chunk_z: i64,
+    x: usize,
+    z: usize,
+}
+
 fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
     let (x, y, z) = chunk;
     (x - 1..=x + 1)
@@ -224,7 +233,7 @@ fn spawn_new_chunk_bundle(
             ..default()
         },
         Chunk(chunk_x, chunk_y, chunk_z),
-        Name::new(format!("Chunk ({},{},{})", chunk_x, chunk_y, chunk_z)),
+        Name::new(format!("Chunk_({},{},{})", chunk_x, chunk_y, chunk_z)),
     );
 
     commands.spawn(chunk_bundle).with_children(|parent| {
@@ -241,7 +250,7 @@ fn spawn_new_chunk_bundle(
                     },
                     InheritedVisibility::default(),
                     cell.clone(),
-                    Name::new(format!("Cell ({},{})", x, z)),
+                    Name::new(format!("Cell_({},{})", x, z)),
                 );
 
                 parent.spawn(cell_bundle).with_children(|grandparent| {
@@ -255,6 +264,13 @@ fn spawn_new_chunk_bundle(
                                 ..default()
                             },
                             CellObject,
+                            ChunkCellMarker {
+                                chunk_x,
+                                chunk_y,
+                                chunk_z,
+                                x,
+                                z,
+                            },
                             Interactable {
                                 id: format!(
                                     "Ladder_({},{},{})_({},{})",
@@ -445,7 +461,7 @@ fn player_movement(
     chunks_query: Query<(&Chunk, &Children), Without<Player>>,
     cells_query: Query<&Children, (With<Cell>, Without<Player>)>,
     cell_objects_query: Query<(&GlobalTransform, &Collider), (With<CellObject>, Without<Player>)>,
-    interactables_query: Query<(&Interactable, &GlobalTransform)>,
+    interactables_query: Query<(&Interactable, &GlobalTransform, &ChunkCellMarker)>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
     active_chunk: Res<State<ActiveChunk>>,
     player_state: Res<State<PlayerState>>,
@@ -468,35 +484,62 @@ fn player_movement(
             PlayerState::ClimbingLadder(id) => {
                 let mut direction = Vec3::default();
 
-                if let Some((_, interactable_gl_transform)) =
-                    interactables_query.iter().find(|(i, _)| i.id == id)
+                if let Some((_, ladder_gl_transform, ladder_marker)) =
+                    interactables_query.iter().find(|(i, _, _)| i.id == id)
                 {
                     let half_player_size = PLAYER_SIZE / 2.0;
-                    let ladder_floor_gl_y = interactable_gl_transform.translation().y
-                        + half_player_size
-                        - (CELL_SIZE / 2.0);
+                    let ladder_floor_gl_y =
+                        ladder_gl_transform.translation().y + half_player_size - (CELL_SIZE / 2.0);
                     let ladder_ceiling_gl_y = ladder_floor_gl_y + CELL_SIZE;
 
                     // Up ladder
                     if keys.pressed(KeyCode::KeyW) {
-                        if !keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
-                            && player_gl_translation.y >= ladder_ceiling_gl_y
-                        {
+                        if player_gl_translation.y < ladder_ceiling_gl_y {
+                            // Move player up ladder
+                            direction.y += camera_transform.up().y;
+                        } else if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+                            // Check if there is a ladder above this cell
+                            if let Some((ladder_above, _, _)) =
+                                interactables_query.iter().find(|(_, _, m)| {
+                                    m.chunk_x == ladder_marker.chunk_x
+                                        && m.chunk_y == ladder_marker.chunk_y + 1
+                                        && m.chunk_z == ladder_marker.chunk_z
+                                        && m.x == ladder_marker.x
+                                        && m.z == ladder_marker.z
+                                })
+                            {
+                                next_player_state
+                                    .set(PlayerState::ClimbingLadder(ladder_above.id.to_owned()));
+                            }
+                        } else {
+                            // Exit ladder climb
                             player_transform.translation.y = ladder_ceiling_gl_y;
                             next_player_state.set(PlayerState::Walking);
-                        } else {
-                            direction.y += camera_transform.up().y;
                         }
                     }
                     // Down ladder
                     if keys.pressed(KeyCode::KeyS) {
-                        if !keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
-                            && player_gl_translation.y <= ladder_floor_gl_y
-                        {
+                        if player_gl_translation.y > ladder_floor_gl_y {
+                            // Move player down ladder
+                            direction.y += camera_transform.down().y;
+                        } else if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+                            // Check if there is a ladder below this cell
+                            if let Some((ladder_below, _, _)) =
+                                interactables_query.iter().find(|(_, _, m)| {
+                                    m.chunk_x == ladder_marker.chunk_x
+                                        && m.chunk_y == ladder_marker.chunk_y - 1
+                                        && m.chunk_z == ladder_marker.chunk_z
+                                        && m.x == ladder_marker.x
+                                        && m.z == ladder_marker.z
+                                })
+                            {
+                                next_player_state
+                                    .set(PlayerState::ClimbingLadder(ladder_below.id.to_owned()));
+                            }
+                        } else {
+                            // Exit ladder climb
                             player_transform.translation.y = ladder_floor_gl_y;
                             next_player_state.set(PlayerState::Walking);
-                        } else {
-                            direction.y += camera_transform.down().y;
                         }
                     }
                 }
