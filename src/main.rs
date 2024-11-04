@@ -78,6 +78,7 @@ enum CellSpecial {
     #[default]
     None,
     Ladder,
+    Slope,
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -108,13 +109,47 @@ struct Interactable {
     kind: InteractableKind,
 }
 
-#[derive(Component)]
+#[derive(Clone, Component, PartialEq)]
 struct ChunkCellMarker {
     chunk_x: i64,
     chunk_y: i64,
     chunk_z: i64,
     x: usize,
     z: usize,
+}
+
+impl ChunkCellMarker {
+    fn from_global_transform(gt: &GlobalTransform) -> Self {
+        let tl = gt.translation();
+
+        let grid_size_minus_one = (CHUNK_SIZE / CELL_SIZE) - 1.0;
+        let half_chunk_size = CHUNK_SIZE / 2.0;
+
+        // Calculate the offset for centering at (0, 0, 0)
+        let offset_x = tl.x + half_chunk_size;
+        let offset_z = tl.z + half_chunk_size;
+
+        // Calculate chunk coordinates
+        let chunk_x = (offset_x / CHUNK_SIZE).floor() as i64;
+        let chunk_y = (tl.y / CELL_SIZE).floor() as i64;
+        let chunk_z = (offset_z / CHUNK_SIZE).floor() as i64;
+
+        // Calculate local position within the chunk
+        let x = (grid_size_minus_one
+            - ((offset_x - (chunk_x as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+        let z = (grid_size_minus_one
+            - ((offset_z - (chunk_z as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+
+        ChunkCellMarker {
+            chunk_x,
+            chunk_y,
+            chunk_z,
+            x,
+            z,
+        }
+    }
 }
 
 fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
@@ -258,6 +293,14 @@ fn spawn_new_chunk_bundle(
 
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
+                let ccm = ChunkCellMarker {
+                    chunk_x,
+                    chunk_y,
+                    chunk_z,
+                    x,
+                    z,
+                };
+
                 let cell_bundle = (
                     TransformBundle {
                         local: Transform::from_xyz(calc_floor_pos(x), 0.0, calc_floor_pos(z)),
@@ -265,38 +308,57 @@ fn spawn_new_chunk_bundle(
                     },
                     InheritedVisibility::default(),
                     cell.clone(),
+                    ccm.clone(),
                     Name::new(format!("Cell_({},{})", x, z)),
                 );
 
                 parent.spawn(cell_bundle).with_children(|grandparent| {
-                    // Ladder
-                    if cell.special == CellSpecial::Ladder {
-                        grandparent.spawn((
-                            PbrBundle {
-                                mesh: meshes.add(Cuboid::new(0.5, CELL_SIZE, 0.5)),
-                                material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
-                                transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
-                                ..default()
-                            },
-                            CellObject,
-                            ChunkCellMarker {
-                                chunk_x,
-                                chunk_y,
-                                chunk_z,
-                                x,
-                                z,
-                            },
-                            Interactable {
-                                id: format!(
-                                    "Ladder_({},{},{})_({},{})",
-                                    chunk_x, chunk_y, chunk_z, x, z
-                                ),
-                                range: 2.0,
-                                kind: InteractableKind::Ladder,
-                            },
-                            Collider(0.5, CELL_SIZE, 0.5),
-                            Name::new("Ladder"),
-                        ));
+                    // Special
+                    match cell.special {
+                        CellSpecial::None => (),
+                        CellSpecial::Ladder => {
+                            grandparent.spawn((
+                                PbrBundle {
+                                    mesh: meshes.add(Cuboid::new(0.5, CELL_SIZE, 0.5)),
+                                    material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
+                                    transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
+                                    ..default()
+                                },
+                                CellObject,
+                                ccm.clone(),
+                                Interactable {
+                                    id: format!(
+                                        "Ladder_({},{},{})_({},{})",
+                                        chunk_x, chunk_y, chunk_z, x, z
+                                    ),
+                                    range: 2.0,
+                                    kind: InteractableKind::Ladder,
+                                },
+                                Collider(0.5, CELL_SIZE, 0.5),
+                                Name::new("Ladder"),
+                            ));
+                        }
+                        CellSpecial::Slope => {
+                            let mut transform = Transform::from_xyz(0.0, CELL_SIZE / 2.0, 0.0);
+                            let x_45_deg_rotation = Quat::from_rotation_x(PI / 4.0);
+                            transform.rotate(x_45_deg_rotation);
+
+                            let cell_size_squared = CELL_SIZE.powi(2);
+
+                            grandparent.spawn((
+                                PbrBundle {
+                                    mesh: meshes.add(Plane3d::default().mesh().size(
+                                        CELL_SIZE,
+                                        (cell_size_squared + cell_size_squared).sqrt(), // calculate hypotenuse
+                                    )),
+                                    material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
+                                    transform,
+                                    ..default()
+                                },
+                                CellObject,
+                                Name::new("Slope"),
+                            ));
+                        }
                     }
 
                     // Floor
@@ -697,25 +759,42 @@ fn are_colliding(e1: (&Vec3, &Collider), e2: (&Vec3, &Collider)) -> bool {
 
 fn handle_player_moved(
     mut player_moved_event_reader: EventReader<PlayerMove>,
-    player_query: Query<&GlobalTransform, With<Player>>,
+    mut player_query: Query<(&mut Transform, &GlobalTransform), With<Player>>,
+    mut cells_query: Query<(&Cell, &ChunkCellMarker)>,
     interactables_query: Query<(&Interactable, &GlobalTransform)>,
     mut next_pending_interactable: ResMut<NextState<PendingInteractable>>,
 ) {
-    'outer: for _ in player_moved_event_reader.read() {
-        let player_gl_transform = player_query.get_single().expect("Error retrieving player");
+    for _ in player_moved_event_reader.read() {
+        let (mut player_transform, player_gl_transform) = player_query
+            .get_single_mut()
+            .expect("Error retrieving player");
+        let player_gl_translation = player_gl_transform.translation();
 
+        // Check if player is in range of any interactables
+        let mut in_range = false;
         for (ibl, ibl_gl_transform) in interactables_query.iter() {
-            let dist = player_gl_transform
-                .translation()
-                .distance(ibl_gl_transform.translation());
+            let dist = player_gl_translation.distance(ibl_gl_transform.translation());
 
             if dist <= ibl.range {
                 next_pending_interactable.set(PendingInteractable(Some(ibl.id.clone())));
-                continue 'outer;
+                in_range = true;
+                break;
             }
         }
+        if !in_range {
+            next_pending_interactable.set(PendingInteractable(None));
+        }
 
-        next_pending_interactable.set(PendingInteractable(None));
+        // Check if player is on a slope cell
+        let player_ccm = ChunkCellMarker::from_global_transform(&player_gl_transform);
+        if let Some((cell, _)) = cells_query.iter_mut().find(|(_, ccm)| **ccm == player_ccm) {
+            if cell.special == CellSpecial::Slope {
+                let dist_z = player_transform.translation.z / CELL_SIZE;
+                let new_y =
+                    -1.0 * (dist_z - dist_z.floor()).abs() * CELL_SIZE + (PLAYER_SIZE / 2.0);
+                player_transform.translation.y = new_y;
+            }
+        }
     }
 }
 
