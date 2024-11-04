@@ -1,6 +1,6 @@
 use crate::{
     utils::rng::{rng_from_str, seed_to_rng},
-    Cell,
+    Cell, CellSpecial,
 };
 
 use rand::{rngs::StdRng, Rng};
@@ -31,10 +31,16 @@ pub fn maze_from_xyz_seed(x: i64, y: i64, z: i64, seed: u32, height: usize, widt
     let h = height / 2;
     let w = width / 2;
 
+    // left and right walls
     maze[h][0].wall_left = false;
     maze[h][height - 1].wall_right = false;
+
+    // top and bottom walls
     maze[0][w].wall_top = false;
     maze[height - 1][w].wall_bottom = false;
+
+    // ceiling and floor
+    maze[h + 1][w + 1].special = CellSpecial::Ladder;
 
     maze
 }
@@ -49,6 +55,7 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
                 wall_right: true,
                 floor: true,
                 ceiling: true,
+                special: CellSpecial::None,
             };
             width
         ];

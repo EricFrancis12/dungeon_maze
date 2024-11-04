@@ -43,6 +43,16 @@ impl Display for ArgName {
     }
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+enum PlayerState {
+    #[default]
+    Walking,
+    ClimbingLadder(String),
+}
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+struct PendingInteractable(Option<String>);
+
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveChunk(i64, i64, i64);
 
@@ -50,6 +60,9 @@ struct ActiveChunk(i64, i64, i64);
 struct ActiveChunkChange {
     value: ActiveChunk,
 }
+
+#[derive(Event)]
+struct PlayerMove;
 
 #[derive(Component)]
 struct Player;
@@ -60,6 +73,13 @@ struct Speed(f32);
 #[derive(Component)]
 struct Chunk(i64, i64, i64);
 
+#[derive(Clone, Debug, Default, PartialEq)]
+enum CellSpecial {
+    #[default]
+    None,
+    Ladder,
+}
+
 #[derive(Clone, Component, Debug, Default)]
 pub struct Cell {
     wall_top: bool,
@@ -68,6 +88,7 @@ pub struct Cell {
     wall_right: bool,
     floor: bool,
     ceiling: bool,
+    special: CellSpecial,
 }
 
 #[derive(Component)]
@@ -75,6 +96,17 @@ struct CellObject;
 
 #[derive(Component, Reflect)]
 struct Collider(f32, f32, f32);
+
+enum InteractableKind {
+    Ladder,
+}
+
+#[derive(Component)]
+struct Interactable {
+    id: String,
+    range: f32,
+    kind: InteractableKind,
+}
 
 fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
     let (x, y, z) = chunk;
@@ -100,7 +132,7 @@ fn manage_active_chunk(
     player_query: Query<&GlobalTransform, With<Player>>,
     active_chunk: Res<State<ActiveChunk>>,
 ) {
-    let player_gl_transform = player_query.get_single().expect("Error retrieving player:");
+    let player_gl_transform = player_query.get_single().expect("Error retrieving player");
     let player_gl_translation = player_gl_transform.translation();
 
     let mut chunk = active_chunk.clone();
@@ -137,9 +169,9 @@ fn manage_active_chunk(
 }
 
 fn handle_active_chunk_change(
+    mut active_chunk_change_event_reader: EventReader<ActiveChunkChange>,
     mut commands: Commands,
     chunks_query: Query<(Entity, &Chunk)>,
-    mut active_chunk_change_event_reader: EventReader<ActiveChunkChange>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -213,6 +245,29 @@ fn spawn_new_chunk_bundle(
                 );
 
                 parent.spawn(cell_bundle).with_children(|grandparent| {
+                    // Ladder
+                    if cell.special == CellSpecial::Ladder {
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes.add(Cuboid::new(0.5, CELL_SIZE, 0.5)),
+                                material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
+                                transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
+                                ..default()
+                            },
+                            CellObject,
+                            Interactable {
+                                id: format!(
+                                    "Ladder_({},{},{})_({},{})",
+                                    chunk_x, chunk_y, chunk_z, x, z
+                                ),
+                                range: 2.0,
+                                kind: InteractableKind::Ladder,
+                            },
+                            Collider(0.5, CELL_SIZE, 0.5),
+                            Name::new("Ladder"),
+                        ));
+                    }
+
                     // Floor
                     if cell.floor {
                         grandparent.spawn((
@@ -390,10 +445,14 @@ fn player_movement(
     chunks_query: Query<(&Chunk, &Children), Without<Player>>,
     cells_query: Query<&Children, (With<Cell>, Without<Player>)>,
     cell_objects_query: Query<(&GlobalTransform, &Collider), (With<CellObject>, Without<Player>)>,
+    interactables_query: Query<(&Interactable, &GlobalTransform)>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
     active_chunk: Res<State<ActiveChunk>>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    mut player_move_event_writer: EventWriter<PlayerMove>,
 ) {
     for (mut player_transform, player_gl_transform, player_collider, player_speed) in
         player_query.iter_mut()
@@ -403,40 +462,88 @@ fn player_movement(
             Err(err) => Err(format!("Error retrieving camera: {}", err)).unwrap(),
         };
 
-        let mut direction = Vec3::default();
-
-        // Forward
-        if keys.pressed(KeyCode::KeyW) {
-            let d = camera_transform.forward();
-            direction.x += d.x;
-            direction.z += d.z;
-        }
-        // Back
-        if keys.pressed(KeyCode::KeyS) {
-            let d = camera_transform.back();
-            direction.x += d.x;
-            direction.z += d.z;
-        }
-        // Left
-        if keys.pressed(KeyCode::KeyA) {
-            let d = camera_transform.left();
-            direction.x += d.x;
-            direction.z += d.z;
-        }
-        // Right
-        if keys.pressed(KeyCode::KeyD) {
-            let d = camera_transform.right();
-            direction.x += d.x;
-            direction.z += d.z;
-        }
-
         let mut player_gl_translation = player_gl_transform.translation();
-        let movement = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
-        player_gl_translation += movement;
 
-        if direction.length_squared() > 0.0 {
-            player_transform.look_to(direction, Vec3::Y);
-        }
+        let movement = match player_state.get().to_owned() {
+            PlayerState::ClimbingLadder(id) => {
+                let mut direction = Vec3::default();
+
+                if let Some((_, interactable_gl_transform)) =
+                    interactables_query.iter().find(|(i, _)| i.id == id)
+                {
+                    let half_player_size = PLAYER_SIZE / 2.0;
+                    let ladder_floor_gl_y = interactable_gl_transform.translation().y
+                        + half_player_size
+                        - (CELL_SIZE / 2.0);
+                    let ladder_ceiling_gl_y = ladder_floor_gl_y + CELL_SIZE;
+
+                    // Up ladder
+                    if keys.pressed(KeyCode::KeyW) {
+                        if !keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
+                            && player_gl_translation.y >= ladder_ceiling_gl_y
+                        {
+                            player_transform.translation.y = ladder_ceiling_gl_y;
+                            next_player_state.set(PlayerState::Walking);
+                        } else {
+                            direction.y += camera_transform.up().y;
+                        }
+                    }
+                    // Down ladder
+                    if keys.pressed(KeyCode::KeyS) {
+                        if !keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
+                            && player_gl_translation.y <= ladder_floor_gl_y
+                        {
+                            player_transform.translation.y = ladder_floor_gl_y;
+                            next_player_state.set(PlayerState::Walking);
+                        } else {
+                            direction.y += camera_transform.down().y;
+                        }
+                    }
+                }
+
+                let mvmt = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
+                player_gl_translation += mvmt;
+
+                mvmt
+            }
+            _ => {
+                let mut direction = Vec3::default();
+
+                // Forward
+                if keys.pressed(KeyCode::KeyW) {
+                    let d = camera_transform.forward();
+                    direction.x += d.x;
+                    direction.z += d.z;
+                }
+                // Back
+                if keys.pressed(KeyCode::KeyS) {
+                    let d = camera_transform.back();
+                    direction.x += d.x;
+                    direction.z += d.z;
+                }
+                // Left
+                if keys.pressed(KeyCode::KeyA) {
+                    let d = camera_transform.left();
+                    direction.x += d.x;
+                    direction.z += d.z;
+                }
+                // Right
+                if keys.pressed(KeyCode::KeyD) {
+                    let d = camera_transform.right();
+                    direction.x += d.x;
+                    direction.z += d.z;
+                }
+
+                let mvmt = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
+                player_gl_translation += mvmt;
+
+                if direction.length_squared() > 0.0 {
+                    player_transform.look_to(direction, Vec3::Y);
+                }
+
+                mvmt
+            }
+        };
 
         for (chunk, children) in chunks_query.iter() {
             // Check collision of only cells in the active chunk
@@ -471,6 +578,7 @@ fn player_movement(
         }
 
         player_transform.translation += movement;
+        player_move_event_writer.send(PlayerMove);
     }
 }
 
@@ -529,6 +637,86 @@ fn are_colliding(e1: (&Vec3, &Collider), e2: (&Vec3, &Collider)) -> bool {
     x_overlapping && y_overlapping && z_overlapping
 }
 
+fn handle_player_moved(
+    mut player_moved_event_reader: EventReader<PlayerMove>,
+    player_query: Query<&GlobalTransform, With<Player>>,
+    interactables_query: Query<(&Interactable, &GlobalTransform)>,
+    mut next_pending_interactable: ResMut<NextState<PendingInteractable>>,
+) {
+    'outer: for _ in player_moved_event_reader.read() {
+        let player_gl_transform = player_query.get_single().expect("Error retrieving player");
+
+        for (ibl, ibl_gl_transform) in interactables_query.iter() {
+            let dist = player_gl_transform
+                .translation()
+                .distance(ibl_gl_transform.translation());
+
+            if dist <= ibl.range {
+                next_pending_interactable.set(PendingInteractable(Some(ibl.id.clone())));
+                continue 'outer;
+            }
+        }
+
+        next_pending_interactable.set(PendingInteractable(None));
+    }
+}
+
+fn handle_keyboard_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut player_query: Query<&mut Transform, With<Player>>,
+    interactables_query: Query<(&Interactable, &GlobalTransform, &Collider)>,
+    pending_interactable: Res<State<PendingInteractable>>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
+) {
+    let mut player_transform = player_query
+        .get_single_mut()
+        .expect("Error retrieving player");
+
+    if keyboard_input.just_pressed(KeyCode::KeyE) {
+        if let Some(id) = pending_interactable.get().0.to_owned() {
+            for (interactable, interactable_gl_transform, interactable_collider) in
+                interactables_query.iter()
+            {
+                if interactable.id != id {
+                    continue;
+                }
+
+                match interactable.kind {
+                    InteractableKind::Ladder => match player_state.get() {
+                        PlayerState::ClimbingLadder(_) => {
+                            next_player_state.set(PlayerState::Walking)
+                        }
+                        _ => {
+                            // Position player directly in front of ladder
+                            let tl = interactable_gl_transform.translation();
+                            let half_player_size = PLAYER_SIZE / 2.0;
+
+                            player_transform.translation.x = tl.x;
+                            player_transform.translation.y += 0.1;
+                            player_transform.translation.z =
+                                tl.z - interactable_collider.2 - half_player_size;
+
+                            let y = player_transform.translation.y;
+                            player_transform.look_at(
+                                Vec3 {
+                                    x: tl.x,
+                                    y,
+                                    z: tl.z,
+                                },
+                                Dir3::Z,
+                            );
+
+                            next_player_state.set(PlayerState::ClimbingLadder(id));
+                        }
+                    },
+                }
+                return;
+            }
+        }
+    }
+}
+
 fn main() {
     assert_eq!(
         CHUNK_SIZE % CELL_SIZE,
@@ -561,14 +749,19 @@ fn main() {
             WorldInspectorPlugin::new(),
         ))
         .init_state::<ActiveChunk>()
+        .init_state::<PendingInteractable>()
+        .init_state::<PlayerState>()
         .add_event::<ActiveChunkChange>()
+        .add_event::<PlayerMove>()
         .add_systems(Startup, (spawn_initial_chunks, spawn_camera, spawn_player))
         .add_systems(
             Update,
             (
                 player_movement,
+                handle_player_moved,
                 manage_active_chunk,
                 handle_active_chunk_change,
+                handle_keyboard_input,
             ),
         )
         .run();
