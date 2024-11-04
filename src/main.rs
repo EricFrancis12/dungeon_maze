@@ -24,6 +24,8 @@ const DEFAULT_PLAYER_SPEED: f32 = 4.0;
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
 const CAMERA_Z: f32 = 5.0;
+const CAMERA_ZOOM_MIN: f32 = 1.0;
+const CAMERA_ZOOM_MAX: f32 = 1000.0;
 
 const SEED: u32 = 1234;
 const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
@@ -64,6 +66,8 @@ pub struct Cell {
     wall_bottom: bool,
     wall_left: bool,
     wall_right: bool,
+    floor: bool,
+    ceiling: bool,
 }
 
 #[derive(Component)]
@@ -72,18 +76,24 @@ struct CellObject;
 #[derive(Component, Reflect)]
 struct Collider(f32, f32, f32);
 
-fn make_neighboring_xz_chunks(chunk: (i64, i64, i64)) -> [(i64, i64, i64); 9] {
+fn make_neighboring_xz_chunks(chunk: (i64, i64, i64)) -> [(i64, i64, i64); 11] {
     let (x, y, z) = chunk;
     [
+        // active chunk
+        (x, y, z),
+        // x and z neighbors
         (x - 1, y, z - 1),
         (x - 1, y, z),
         (x - 1, y, z + 1),
         (x, y, z - 1),
-        (x, y, z), // active chunk in the center, with neightbors surrounding it
         (x, y, z + 1),
         (x + 1, y, z - 1),
         (x + 1, y, z),
         (x + 1, y, z + 1),
+        // y neighbor above
+        (x, y + 1, z),
+        // y neighbor below
+        (x, y - 1, z),
     ]
 }
 
@@ -190,7 +200,7 @@ fn spawn_new_chunk_bundle(
             material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
             transform: Transform::from_xyz(
                 chunk_x as f32 * CHUNK_SIZE,
-                chunk_y as f32 * CHUNK_SIZE,
+                chunk_y as f32 * CELL_SIZE,
                 chunk_z as f32 * CHUNK_SIZE,
             ),
             ..default()
@@ -207,20 +217,47 @@ fn spawn_new_chunk_bundle(
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
                 let cell_bundle = (
-                    PbrBundle {
-                        mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                        material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
-                        transform: Transform::from_xyz(
-                            calc_transform_pos(x),
-                            0.0,
-                            calc_transform_pos(z),
-                        ),
+                    TransformBundle {
+                        local: Transform::from_xyz(calc_floor_pos(x), 0.0, calc_floor_pos(z)),
                         ..default()
                     },
+                    InheritedVisibility::default(),
                     cell.clone(),
                     Name::new(format!("Cell ({},{})", x, z)),
                 );
+
                 parent.spawn(cell_bundle).with_children(|grandparent| {
+                    // Floor
+                    if cell.floor {
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
+                                ..default()
+                            },
+                            Name::new("Floor"),
+                        ));
+                    }
+
+                    // Ceiling
+                    if cell.ceiling {
+                        let mut transform = Transform::default();
+                        let x_180_deg_rotation = Quat::from_rotation_x(PI);
+                        transform.rotate(x_180_deg_rotation);
+
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.0, 0.2, 0.4, 1.0)),
+                                transform,
+                                ..default()
+                            },
+                            Name::new("Ceiling"),
+                        ));
+                    }
+
                     // Top wall
                     if cell.wall_top {
                         let mut transform =
@@ -310,7 +347,7 @@ fn new_cell_wall_bundle(
     )
 }
 
-fn calc_transform_pos(index: usize) -> f32 {
+fn calc_floor_pos(index: usize) -> f32 {
     let num_cells_per_chunk = (CHUNK_SIZE / CELL_SIZE) as usize;
     let mut positions = vec![CELL_SIZE / 2.0, -CELL_SIZE / 2.0];
     while positions.len() < num_cells_per_chunk {
@@ -328,7 +365,10 @@ fn spawn_camera(mut commands: Commands) {
                 .looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
-        ThirdPersonCamera::default(),
+        ThirdPersonCamera {
+            zoom: Zoom::new(CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX),
+            ..default()
+        },
         Name::new("Camera"),
     );
 

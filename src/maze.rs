@@ -47,6 +47,8 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
                 wall_bottom: true,
                 wall_left: true,
                 wall_right: true,
+                floor: true,
+                ceiling: true,
             };
             width
         ];
