@@ -3,6 +3,7 @@ mod utils;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_rapier3d::{geometry, prelude::*};
 use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{
@@ -19,7 +20,7 @@ const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 5.0;
+const DEFAULT_PLAYER_SPEED: f32 = 100.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -68,7 +69,7 @@ struct PlayerMove;
 #[derive(Component)]
 struct Player;
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 struct Speed(f32);
 
 #[derive(Component)]
@@ -79,6 +80,7 @@ enum CellSpecial {
     #[default]
     None,
     Ladder,
+    Slope,
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -109,13 +111,47 @@ struct Interactable {
     kind: InteractableKind,
 }
 
-#[derive(Component)]
+#[derive(Clone, Component, PartialEq)]
 struct ChunkCellMarker {
     chunk_x: i64,
     chunk_y: i64,
     chunk_z: i64,
     x: usize,
     z: usize,
+}
+
+impl ChunkCellMarker {
+    fn _from_global_transform(gt: &GlobalTransform) -> Self {
+        let tl = gt.translation();
+
+        let grid_size_minus_one = (CHUNK_SIZE / CELL_SIZE) - 1.0;
+        let half_chunk_size = CHUNK_SIZE / 2.0;
+
+        // Calculate the offset for centering at (0, 0, 0)
+        let offset_x = tl.x + half_chunk_size;
+        let offset_z = tl.z + half_chunk_size;
+
+        // Calculate chunk coordinates
+        let chunk_x = (offset_x / CHUNK_SIZE).floor() as i64;
+        let chunk_y = (tl.y / CELL_SIZE).floor() as i64;
+        let chunk_z = (offset_z / CHUNK_SIZE).floor() as i64;
+
+        // Calculate local position within the chunk
+        let x = (grid_size_minus_one
+            - ((offset_x - (chunk_x as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+        let z = (grid_size_minus_one
+            - ((offset_z - (chunk_z as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+
+        ChunkCellMarker {
+            chunk_x,
+            chunk_y,
+            chunk_z,
+            x,
+            z,
+        }
+    }
 }
 
 fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
@@ -259,6 +295,14 @@ fn spawn_new_chunk_bundle(
 
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
+                let ccm = ChunkCellMarker {
+                    chunk_x,
+                    chunk_y,
+                    chunk_z,
+                    x,
+                    z,
+                };
+
                 let cell_bundle = (
                     TransformBundle {
                         local: Transform::from_xyz(calc_floor_pos(x), 0.0, calc_floor_pos(z)),
@@ -266,38 +310,58 @@ fn spawn_new_chunk_bundle(
                     },
                     InheritedVisibility::default(),
                     cell.clone(),
+                    ccm.clone(),
                     Name::new(format!("Cell_({},{})", x, z)),
                 );
 
                 parent.spawn(cell_bundle).with_children(|grandparent| {
-                    // Ladder
-                    if cell.special == CellSpecial::Ladder {
-                        grandparent.spawn((
-                            PbrBundle {
-                                mesh: meshes.add(Cuboid::new(0.5, CELL_SIZE, 0.5)),
-                                material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
-                                transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
-                                ..default()
-                            },
-                            CellObject,
-                            ChunkCellMarker {
-                                chunk_x,
-                                chunk_y,
-                                chunk_z,
-                                x,
-                                z,
-                            },
-                            Interactable {
-                                id: format!(
-                                    "Ladder_({},{},{})_({},{})",
-                                    chunk_x, chunk_y, chunk_z, x, z
-                                ),
-                                range: 2.0,
-                                kind: InteractableKind::Ladder,
-                            },
-                            Collider(0.5, CELL_SIZE, 0.5),
-                            Name::new("Ladder"),
-                        ));
+                    // Special
+                    match cell.special {
+                        CellSpecial::None => (),
+                        CellSpecial::Ladder => {
+                            grandparent.spawn((
+                                PbrBundle {
+                                    mesh: meshes.add(Cuboid::new(0.5, CELL_SIZE, 0.5)),
+                                    material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
+                                    transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
+                                    ..default()
+                                },
+                                geometry::Collider::cuboid(0.25, CELL_SIZE / 2.0, 0.25),
+                                CellObject,
+                                ccm.clone(),
+                                Interactable {
+                                    id: format!(
+                                        "Ladder_({},{},{})_({},{})",
+                                        chunk_x, chunk_y, chunk_z, x, z
+                                    ),
+                                    range: 2.0,
+                                    kind: InteractableKind::Ladder,
+                                },
+                                Collider(0.5, CELL_SIZE, 0.5),
+                                Name::new("Ladder"),
+                            ));
+                        }
+                        CellSpecial::Slope => {
+                            let mut transform = Transform::from_xyz(0.0, CELL_SIZE / 2.0, 0.0);
+                            let z_45_deg_rotation = Quat::from_rotation_z(PI / 4.0);
+                            transform.rotate(z_45_deg_rotation);
+
+                            let cell_size_squared = CELL_SIZE.powi(2);
+                            let height = (cell_size_squared + cell_size_squared).sqrt(); // calculate hypotenuse
+
+                            grandparent.spawn((
+                                PbrBundle {
+                                    mesh: meshes
+                                        .add(Plane3d::default().mesh().size(height, CELL_SIZE)),
+                                    material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
+                                    transform,
+                                    ..default()
+                                },
+                                geometry::Collider::cuboid(height / 2.0, 0.1, CELL_SIZE / 2.0),
+                                CellObject,
+                                Name::new("Slope"),
+                            ));
+                        }
                     }
 
                     // Floor
@@ -309,6 +373,7 @@ fn spawn_new_chunk_bundle(
                                 material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
                                 ..default()
                             },
+                            geometry::Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
                             CellObject,
                             Name::new("Floor"),
                         ));
@@ -416,6 +481,7 @@ fn new_cell_wall_bundle(
             transform,
             ..default()
         },
+        geometry::Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
         CellObject,
         collider,
         Name::new(name),
@@ -467,6 +533,14 @@ fn spawn_player(
             ..default()
         },
         Collider(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE),
+        Velocity::default(),
+        GravityScale(30.0),
+        RigidBody::Dynamic,
+        LockedAxes::ROTATION_LOCKED_X
+            | LockedAxes::ROTATION_LOCKED_Y
+            | LockedAxes::ROTATION_LOCKED_Z,
+        geometry::Collider::ball(PLAYER_SIZE / 2.0),
+        ExternalImpulse::default(),
         Player,
         ThirdPersonCameraTarget,
         Speed(DEFAULT_PLAYER_SPEED),
@@ -477,21 +551,31 @@ fn spawn_player(
 }
 
 fn player_movement(
-    mut player_query: Query<(&mut Transform, &GlobalTransform, &Collider, &Speed), With<Player>>,
-    chunks_query: Query<(&Chunk, &Children), Without<Player>>,
-    cells_query: Query<&Children, (With<Cell>, Without<Player>)>,
-    cell_objects_query: Query<(&GlobalTransform, &Collider), (With<CellObject>, Without<Player>)>,
+    mut player_query: Query<
+        (
+            &mut Transform,
+            &GlobalTransform,
+            &mut Velocity,
+            &mut ExternalImpulse,
+            &Speed,
+        ),
+        With<Player>,
+    >,
     interactables_query: Query<(&Interactable, &GlobalTransform, &ChunkCellMarker)>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
-    active_chunk: Res<State<ActiveChunk>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut player_move_event_writer: EventWriter<PlayerMove>,
 ) {
-    for (mut player_transform, player_gl_transform, player_collider, player_speed) in
-        player_query.iter_mut()
+    for (
+        mut player_transform,
+        player_gl_transform,
+        mut player_velocity,
+        mut player_external_impulse,
+        player_speed,
+    ) in player_query.iter_mut()
     {
         let camera_transform = match camera_query.get_single() {
             Ok(ct) => ct,
@@ -598,7 +682,6 @@ fn player_movement(
                 }
 
                 let mvmt = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
-                player_gl_translation += mvmt;
 
                 if direction.length_squared() > 0.0 {
                     player_transform.look_to(direction, Vec3::Y);
@@ -608,119 +691,38 @@ fn player_movement(
             }
         };
 
-        for (chunk, children) in chunks_query.iter() {
-            // Check collision of only cells in the active chunk
-            if chunk.0 != active_chunk.0 || chunk.1 != active_chunk.1 || chunk.2 != active_chunk.2 {
-                continue;
-            }
-
-            for &child in children.iter() {
-                let grandchildren = match cells_query.get(child) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
-
-                for &grandchild in grandchildren.iter() {
-                    let (cell_object_gl_transform, cell_object_collider) =
-                        match cell_objects_query.get(grandchild) {
-                            Ok(c) => c,
-                            Err(_) => continue,
-                        };
-
-                    if are_colliding(
-                        (&player_gl_translation, player_collider),
-                        (
-                            &cell_object_gl_transform.translation(),
-                            cell_object_collider,
-                        ),
-                    ) {
-                        return;
-                    }
-                }
-            }
-        }
-
-        player_transform.translation += movement;
+        player_velocity.linvel = Vec3::ZERO; // reset player velocity
+        player_external_impulse.impulse = movement;
         player_move_event_writer.send(PlayerMove);
     }
 }
 
-fn are_colliding(e1: (&Vec3, &Collider), e2: (&Vec3, &Collider)) -> bool {
-    let (t1, c1) = e1;
-    let (t2, c2) = e2;
-
-    // x
-    let e1_x_top = t1.x + c1.0 / 2.0;
-    let e1_x_bottom = t1.x - c1.0 / 2.0;
-    let e2_x_top = t2.x + c2.0 / 2.0;
-    let e2_x_bottom = t2.x - c2.0 / 2.0;
-
-    let e1_x_overlapping_above = e1_x_top >= e2_x_top && e2_x_top >= e1_x_bottom;
-    let e2_x_overlapping_above = e1_x_top >= e2_x_bottom && e2_x_bottom >= e1_x_bottom;
-    let e1_x_overlapping_below = e2_x_top >= e1_x_top && e1_x_top >= e2_x_bottom;
-    let e2_x_overlapping_below = e2_x_top >= e1_x_bottom && e1_x_bottom >= e2_x_bottom;
-
-    let x_overlapping = e1_x_overlapping_above
-        || e2_x_overlapping_above
-        || e1_x_overlapping_below
-        || e2_x_overlapping_below;
-
-    // y
-    let e1_y_top = t1.y + c1.1 / 2.0;
-    let e1_y_bottom = t1.y - c1.1 / 2.0;
-    let e2_y_top = t2.y + c2.1 / 2.0;
-    let e2_y_bottom = t2.y - c2.1 / 2.0;
-
-    let e1_y_overlapping_above = e1_y_top >= e2_y_top && e2_y_top >= e1_y_bottom;
-    let e2_y_overlapping_above = e1_y_top >= e2_y_bottom && e2_y_bottom >= e1_y_bottom;
-    let e1_y_overlapping_below = e2_y_top >= e1_y_top && e1_y_top >= e2_y_bottom;
-    let e2_y_overlapping_below = e2_y_top >= e1_y_bottom && e1_y_bottom >= e2_y_bottom;
-
-    let y_overlapping = e1_y_overlapping_above
-        || e2_y_overlapping_above
-        || e1_y_overlapping_below
-        || e2_y_overlapping_below;
-
-    // z
-    let e1_z_top = t1.z + c1.2 / 2.0;
-    let e1_z_bottom = t1.z - c1.2 / 2.0;
-    let e2_z_top = t2.z + c2.2 / 2.0;
-    let e2_z_bottom = t2.z - c2.2 / 2.0;
-
-    let e1_z_overlapping_above = e1_z_top >= e2_z_top && e2_z_top >= e1_z_bottom;
-    let e2_z_overlapping_above = e1_z_top >= e2_z_bottom && e2_z_bottom >= e1_z_bottom;
-    let e1_z_overlapping_below = e2_z_top >= e1_z_top && e1_z_top >= e2_z_bottom;
-    let e2_z_overlapping_below = e2_z_top >= e1_z_bottom && e1_z_bottom >= e2_z_bottom;
-
-    let z_overlapping = e1_z_overlapping_above
-        || e2_z_overlapping_above
-        || e1_z_overlapping_below
-        || e2_z_overlapping_below;
-
-    x_overlapping && y_overlapping && z_overlapping
-}
-
 fn handle_player_moved(
     mut player_moved_event_reader: EventReader<PlayerMove>,
-    player_query: Query<&GlobalTransform, With<Player>>,
+    mut player_query: Query<&GlobalTransform, With<Player>>,
     interactables_query: Query<(&Interactable, &GlobalTransform)>,
     mut next_pending_interactable: ResMut<NextState<PendingInteractable>>,
 ) {
-    'outer: for _ in player_moved_event_reader.read() {
-        let player_gl_transform = player_query.get_single().expect("Error retrieving player");
+    for _ in player_moved_event_reader.read() {
+        let player_gl_transform = player_query
+            .get_single_mut()
+            .expect("Error retrieving player");
+        let player_gl_translation = player_gl_transform.translation();
 
+        // Check if player is in range of any interactables
+        let mut in_range = false;
         for (ibl, ibl_gl_transform) in interactables_query.iter() {
-            let dist = player_gl_transform
-                .translation()
-                .distance(ibl_gl_transform.translation());
+            let dist = player_gl_translation.distance(ibl_gl_transform.translation());
 
             if dist <= ibl.range {
                 next_pending_interactable.set(PendingInteractable(Some(ibl.id.clone())));
-                continue 'outer;
+                in_range = true;
+                break;
             }
         }
-
-        next_pending_interactable.set(PendingInteractable(None));
+        if !in_range {
+            next_pending_interactable.set(PendingInteractable(None));
+        }
     }
 }
 
@@ -806,8 +808,11 @@ fn main() {
 
     App::new()
         .register_type::<Collider>()
+        .register_type::<Speed>()
         .add_plugins((
             DefaultPlugins,
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin::default(),
             ThirdPersonCameraPlugin,
             WorldInspectorPlugin::new(),
         ))

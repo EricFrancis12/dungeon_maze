@@ -39,8 +39,12 @@ pub fn maze_from_xyz_seed(x: i64, y: i64, z: i64, seed: u32, height: usize, widt
     maze[0][w].wall_top = false;
     maze[height - 1][w].wall_bottom = false;
 
-    // ceiling and floor
+    // ladder
     maze[h + 1][w + 1].special = CellSpecial::Ladder;
+
+    // slope
+    maze[h - 1][w + 1].special = CellSpecial::Slope;
+    maze[h - 1][w + 1].ceiling = false;
 
     maze
 }
