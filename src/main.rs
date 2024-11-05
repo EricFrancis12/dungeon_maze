@@ -3,7 +3,7 @@ mod utils;
 
 use bevy::{animation::animate_targets, prelude::*};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_rapier3d::{geometry, prelude::*};
+use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{
@@ -20,9 +20,11 @@ const CELL_SIZE: f32 = 4.0;
 const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
-const PLAYER_SIZE: f32 = 1.0;
-const PLAYER_SCALE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 100.0;
+const PLAYER_COLLIDER_HX: f32 = 0.4;
+const PLAYER_COLLIDER_HY: f32 = 0.85;
+const PLAYER_COLLIDER_HZ: f32 = 0.4;
+const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
+const DEFAULT_PLAYER_SPEED: f32 = 300.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -49,7 +51,7 @@ impl Display for ArgName {
 
 #[derive(Resource)]
 struct Animations {
-    animations: Vec<AnimationNodeIndex>,
+    nodes: Vec<AnimationNodeIndex>,
     graph: Handle<AnimationGraph>,
 }
 
@@ -60,8 +62,21 @@ enum PlayerState {
     ClimbingLadder(String),
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-struct PlayerAnimation(usize);
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, States)]
+enum PlayerAnimation {
+    #[default]
+    Idle,
+    Jogging,
+}
+
+impl PlayerAnimation {
+    fn index(&self) -> usize {
+        match self {
+            PlayerAnimation::Idle => 0,
+            PlayerAnimation::Jogging => 1,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct PendingInteractable(Option<String>);
@@ -104,9 +119,6 @@ pub struct Cell {
 
 #[derive(Component)]
 struct CellObject;
-
-#[derive(Component, Reflect)]
-struct Collider(f32, f32, f32);
 
 enum InteractableKind {
     Ladder,
@@ -334,7 +346,7 @@ fn spawn_new_chunk_bundle(
                                     transform: Transform::from_xyz(1.0, CELL_SIZE / 2.0, 1.0),
                                     ..default()
                                 },
-                                geometry::Collider::cuboid(0.25, CELL_SIZE / 2.0, 0.25),
+                                Collider::cuboid(0.25, CELL_SIZE / 2.0, 0.25),
                                 CellObject,
                                 ccm.clone(),
                                 Interactable {
@@ -345,7 +357,6 @@ fn spawn_new_chunk_bundle(
                                     range: 2.0,
                                     kind: InteractableKind::Ladder,
                                 },
-                                Collider(0.5, CELL_SIZE, 0.5),
                                 Name::new("Ladder"),
                             ));
                         }
@@ -365,7 +376,7 @@ fn spawn_new_chunk_bundle(
                                     transform,
                                     ..default()
                                 },
-                                geometry::Collider::cuboid(height / 2.0, 0.1, CELL_SIZE / 2.0),
+                                Collider::cuboid(height / 2.0, 0.1, CELL_SIZE / 2.0),
                                 CellObject,
                                 Name::new("Slope"),
                             ));
@@ -381,7 +392,7 @@ fn spawn_new_chunk_bundle(
                                 material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
                                 ..default()
                             },
-                            geometry::Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
                             CellObject,
                             Name::new("Floor"),
                         ));
@@ -416,7 +427,6 @@ fn spawn_new_chunk_bundle(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Top Wall",
                             transform,
-                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -432,7 +442,6 @@ fn spawn_new_chunk_bundle(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Left Wall",
                             transform,
-                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -448,7 +457,6 @@ fn spawn_new_chunk_bundle(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Bottom Wall",
                             transform,
-                            Collider(0.1, CELL_SIZE / 2.0, CELL_SIZE),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -464,7 +472,6 @@ fn spawn_new_chunk_bundle(
                         grandparent.spawn(new_cell_wall_bundle(
                             "Right Wall",
                             transform,
-                            Collider(CELL_SIZE, CELL_SIZE / 2.0, 0.1),
                             &mut meshes,
                             &mut materials,
                         ));
@@ -478,7 +485,6 @@ fn spawn_new_chunk_bundle(
 fn new_cell_wall_bundle(
     name: impl Into<Cow<'static, str>>,
     transform: Transform,
-    collider: Collider,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) -> impl Bundle {
@@ -489,9 +495,8 @@ fn new_cell_wall_bundle(
             transform,
             ..default()
         },
-        geometry::Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+        Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
         CellObject,
-        collider,
         Name::new(name),
     )
 }
@@ -529,35 +534,41 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let mut transform = Transform::from_xyz(2.0, PLAYER_SIZE / 2.0, 2.0);
-    transform.scale = Vec3 {
-        x: PLAYER_SCALE,
-        y: PLAYER_SCALE,
-        z: PLAYER_SCALE,
-    };
-
     let player_bundle = (
-        SceneBundle {
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("Man.glb")),
-            transform,
+        SpatialBundle {
+            transform: Transform::from_xyz(
+                PLAYER_SPAWN_XYZ.0,
+                PLAYER_SPAWN_XYZ.1,
+                PLAYER_SPAWN_XYZ.2,
+            ),
             ..default()
         },
-        Collider(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE),
+        RigidBody::Dynamic,
+        Collider::cuboid(PLAYER_COLLIDER_HX, PLAYER_COLLIDER_HY, PLAYER_COLLIDER_HZ),
+        ExternalImpulse::default(),
         Velocity::default(),
         GravityScale(30.0),
-        RigidBody::Dynamic,
         LockedAxes::ROTATION_LOCKED_X
             | LockedAxes::ROTATION_LOCKED_Y
             | LockedAxes::ROTATION_LOCKED_Z,
-        geometry::Collider::ball(PLAYER_SIZE / 2.0),
-        ExternalImpulse::default(),
         Player,
         ThirdPersonCameraTarget,
         Speed(DEFAULT_PLAYER_SPEED),
         Name::new("Player"),
     );
 
-    commands.spawn(player_bundle);
+    commands.spawn(player_bundle).with_children(|parent| {
+        parent.spawn((
+            SceneBundle {
+                scene: asset_server.load(
+                    GltfAssetLabel::Scene(PlayerAnimation::Idle.index()).from_asset("Man.glb"),
+                ),
+                transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
+                ..default()
+            },
+            Name::new("Player Model"),
+        ));
+    });
 }
 
 fn player_movement(
@@ -600,9 +611,7 @@ fn player_movement(
                 if let Some((_, ladder_gl_transform, ladder_marker)) =
                     interactables_query.iter().find(|(i, _, _)| i.id == id)
                 {
-                    let half_player_size = PLAYER_SIZE / 2.0;
-                    let ladder_floor_gl_y =
-                        ladder_gl_transform.translation().y + half_player_size - (CELL_SIZE / 2.0);
+                    let ladder_floor_gl_y = ladder_gl_transform.translation().y - (CELL_SIZE / 2.0);
                     let ladder_ceiling_gl_y = ladder_floor_gl_y + CELL_SIZE;
 
                     // Up ladder
@@ -742,7 +751,7 @@ fn update_pending_interactable(
 fn handle_keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<&mut Transform, With<Player>>,
-    interactables_query: Query<(&Interactable, &GlobalTransform, &Collider)>,
+    interactables_query: Query<(&Interactable, &GlobalTransform)>,
     pending_interactable: Res<State<PendingInteractable>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
@@ -753,9 +762,7 @@ fn handle_keyboard_input(
 
     if keyboard_input.just_pressed(KeyCode::KeyE) {
         if let Some(id) = pending_interactable.get().0.to_owned() {
-            for (interactable, interactable_gl_transform, interactable_collider) in
-                interactables_query.iter()
-            {
+            for (interactable, interactable_gl_transform) in interactables_query.iter() {
                 if interactable.id != id {
                     continue;
                 }
@@ -768,12 +775,10 @@ fn handle_keyboard_input(
                         _ => {
                             // Position player directly in front of ladder
                             let tl = interactable_gl_transform.translation();
-                            let half_player_size = PLAYER_SIZE / 2.0;
 
                             player_transform.translation.x = tl.x;
                             player_transform.translation.y += 0.1;
-                            player_transform.translation.z =
-                                tl.z - interactable_collider.2 - half_player_size;
+                            player_transform.translation.z = tl.z;
 
                             let y = player_transform.translation.y;
                             player_transform.look_to(
@@ -802,11 +807,13 @@ fn setup_animations(
 ) {
     // Build the animation graph
     let mut graph = AnimationGraph::new();
-    let animations = graph
+    let nodes = graph
         .add_clips(
             [
-                GltfAssetLabel::Animation(0).from_asset("Man.glb#Animation1"),
-                GltfAssetLabel::Animation(1).from_asset("Man.glb#Animation2"),
+                GltfAssetLabel::Animation(PlayerAnimation::Idle.index())
+                    .from_asset("Man.glb#Animation1"),
+                GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
+                    .from_asset("Man.glb#Animation2"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -818,7 +825,7 @@ fn setup_animations(
     // Insert a resource with the current scene information
     let graph = graphs.add(graph);
     commands.insert_resource(Animations {
-        animations,
+        nodes,
         graph: graph.clone(),
     });
 }
@@ -832,7 +839,7 @@ fn play_player_animation(
         let mut transitions = AnimationTransitions::new();
 
         transitions
-            .play(&mut player, animations.animations[0], Duration::ZERO)
+            .play(&mut player, animations.nodes[0], Duration::ZERO)
             .repeat();
 
         commands
@@ -852,30 +859,21 @@ fn change_player_animation(
     for (mut player, mut transitions) in player_query.iter_mut() {
         let is_moving =
             keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]);
-        let i = player_animation.get().0;
+        let animation = *player_animation.get();
 
-        if is_moving && i != 1 {
-            next_player_animation.set(PlayerAnimation(1));
-            transitions
-                .play(
-                    &mut player,
-                    animations.animations[1],
-                    Duration::from_millis(250),
-                )
-                .repeat();
-            return;
-        }
+        let i = if is_moving && animation != PlayerAnimation::Jogging {
+            next_player_animation.set(PlayerAnimation::Jogging);
+            PlayerAnimation::Jogging.index()
+        } else if !is_moving && animation != PlayerAnimation::Idle {
+            next_player_animation.set(PlayerAnimation::Idle);
+            PlayerAnimation::Idle.index()
+        } else {
+            continue;
+        };
 
-        if !is_moving && i != 0 {
-            next_player_animation.set(PlayerAnimation(0));
-            transitions
-                .play(
-                    &mut player,
-                    animations.animations[0],
-                    Duration::from_millis(250),
-                )
-                .repeat();
-        }
+        transitions
+            .play(&mut player, animations.nodes[i], Duration::from_millis(250))
+            .repeat();
     }
 }
 
@@ -904,7 +902,6 @@ fn main() {
     }
 
     App::new()
-        .register_type::<Collider>()
         .register_type::<Speed>()
         .add_plugins((
             DefaultPlugins,
