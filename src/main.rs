@@ -1,4 +1,5 @@
 mod maze;
+mod maze_test;
 mod utils;
 
 use bevy::{animation::animate_targets, prelude::*};
@@ -31,7 +32,7 @@ const CAMERA_Y: f32 = 2.5;
 const CAMERA_Z: f32 = 5.0;
 const CAMERA_ZOOM_MIN: f32 = 1.0;
 const CAMERA_ZOOM_MAX: f32 = 10.0;
-const CAMERA_SENSITIVITY: f32 = 2.0;
+const CAMERA_SENSITIVITY: f32 = 2.5;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
