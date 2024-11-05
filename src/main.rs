@@ -33,6 +33,10 @@ const CAMERA_ZOOM_MIN: f32 = 1.0;
 const CAMERA_ZOOM_MAX: f32 = 10.0;
 const CAMERA_SENSITIVITY: f32 = 2.0;
 
+const CHAIR_COLLIDER_HX: f32 = 0.2;
+const CHAIR_COLLIDER_HY: f32 = 0.25;
+const CHAIR_COLLIDER_HZ: f32 = 0.2;
+
 const SEED: u32 = 1234;
 const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
 
@@ -104,6 +108,7 @@ enum CellSpecial {
     None,
     Ladder,
     Slope,
+    Chair,
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -116,9 +121,6 @@ pub struct Cell {
     ceiling: bool,
     special: CellSpecial,
 }
-
-#[derive(Component)]
-struct CellObject;
 
 enum InteractableKind {
     Ladder,
@@ -184,12 +186,19 @@ fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
 fn spawn_initial_chunks(
     mut commands: Commands,
     active_chunk: Res<State<ActiveChunk>>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let chunks = make_neighboring_xyz_chunks((active_chunk.0, active_chunk.1, active_chunk.2));
     for xyz in chunks {
-        spawn_new_chunk_bundle(xyz, &mut commands, &mut meshes, &mut materials);
+        spawn_new_chunk_bundle(
+            xyz,
+            &mut commands,
+            &asset_server,
+            &mut meshes,
+            &mut materials,
+        );
     }
 }
 
@@ -254,6 +263,7 @@ fn handle_active_chunk_change(
     mut commands: Commands,
     chunks_query: Query<(Entity, &Chunk)>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -281,7 +291,13 @@ fn handle_active_chunk_change(
         // Spawn new chunks that are not currently existing
         for (x, y, z) in new_chunks {
             if !existing_chunks.contains(&(x, y, z)) {
-                spawn_new_chunk_bundle((x, y, z), &mut commands, &mut meshes, &mut materials);
+                spawn_new_chunk_bundle(
+                    (x, y, z),
+                    &mut commands,
+                    &asset_server,
+                    &mut meshes,
+                    &mut materials,
+                );
             }
         }
     }
@@ -290,6 +306,7 @@ fn handle_active_chunk_change(
 fn spawn_new_chunk_bundle(
     (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
     commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
     mut meshes: &mut ResMut<Assets<Mesh>>,
     mut materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
@@ -347,7 +364,6 @@ fn spawn_new_chunk_bundle(
                                     ..default()
                                 },
                                 Collider::cuboid(0.25, CELL_SIZE / 2.0, 0.25),
-                                CellObject,
                                 ccm.clone(),
                                 Interactable {
                                     id: format!(
@@ -377,9 +393,41 @@ fn spawn_new_chunk_bundle(
                                     ..default()
                                 },
                                 Collider::cuboid(height / 2.0, 0.1, CELL_SIZE / 2.0),
-                                CellObject,
                                 Name::new("Slope"),
                             ));
+                        }
+                        CellSpecial::Chair => {
+                            grandparent
+                                .spawn((
+                                    SpatialBundle {
+                                        transform: Transform::from_xyz(
+                                            0.0,
+                                            CHAIR_COLLIDER_HY * 2.0,
+                                            0.0,
+                                        ),
+                                        ..default()
+                                    },
+                                    Collider::cuboid(
+                                        CHAIR_COLLIDER_HX,
+                                        CHAIR_COLLIDER_HY,
+                                        CHAIR_COLLIDER_HZ,
+                                    ),
+                                    Name::new("Chair"),
+                                ))
+                                .with_children(|ggp| {
+                                    ggp.spawn((
+                                        SceneBundle {
+                                            scene: asset_server.load("Chair.glb#Scene0"),
+                                            transform: Transform::from_xyz(
+                                                0.0,
+                                                -CHAIR_COLLIDER_HY,
+                                                0.0,
+                                            ),
+                                            ..default()
+                                        },
+                                        Name::new("Chair Model"),
+                                    ));
+                                });
                         }
                     }
 
@@ -393,7 +441,6 @@ fn spawn_new_chunk_bundle(
                                 ..default()
                             },
                             Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
-                            CellObject,
                             Name::new("Floor"),
                         ));
                     }
@@ -412,7 +459,6 @@ fn spawn_new_chunk_bundle(
                                 transform,
                                 ..default()
                             },
-                            CellObject,
                             Name::new("Ceiling"),
                         ));
                     }
@@ -496,7 +542,6 @@ fn new_cell_wall_bundle(
             ..default()
         },
         Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
-        CellObject,
         Name::new(name),
     )
 }

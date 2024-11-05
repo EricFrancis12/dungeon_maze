@@ -46,6 +46,9 @@ pub fn maze_from_xyz_seed(x: i64, y: i64, z: i64, seed: u32, height: usize, widt
     maze[h - 1][w + 1].special = CellSpecial::Slope;
     maze[h - 1][w + 1].ceiling = false;
 
+    // chair
+    maze[0][0].special = CellSpecial::Chair;
+
     maze
 }
 
