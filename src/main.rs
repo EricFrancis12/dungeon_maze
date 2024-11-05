@@ -21,7 +21,8 @@ const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 0.0001;
+const PLAYER_SCALE: f32 = 1.0;
+const DEFAULT_PLAYER_SPEED: f32 = 100.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -530,14 +531,14 @@ fn spawn_camera(mut commands: Commands) {
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut transform = Transform::from_xyz(2.0, PLAYER_SIZE / 2.0, 2.0);
     transform.scale = Vec3 {
-        x: 0.01,
-        y: 0.01,
-        z: 0.01,
+        x: PLAYER_SCALE,
+        y: PLAYER_SCALE,
+        z: PLAYER_SCALE,
     };
 
     let player_bundle = (
         SceneBundle {
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("Fox.glb")),
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("Man.glb")),
             transform,
             ..default()
         },
@@ -557,25 +558,6 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
 
     commands.spawn(player_bundle);
-}
-
-fn player_animations(
-    mut commands: Commands,
-    animations: Res<Animations>,
-    mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
-) {
-    for (entity, mut player) in &mut players {
-        let mut transitions = AnimationTransitions::new();
-
-        transitions
-            .play(&mut player, animations.animations[0], Duration::ZERO)
-            .repeat();
-
-        commands
-            .entity(entity)
-            .insert(animations.graph.clone())
-            .insert(transitions);
-    }
 }
 
 fn player_movement(
@@ -711,20 +693,21 @@ fn player_movement(
                 let mvmt = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
 
                 if direction.length_squared() > 0.0 {
-                    let inv_direction = direction
+                    // Face player in inverse direction of impulse
+                    let inv = direction
                         * Vec3 {
                             x: -1.0,
                             y: -1.0,
                             z: -1.0,
                         };
-                    player_transform.look_to(inv_direction, Vec3::Y);
+                    player_transform.look_to(inv, Vec3::Y);
                 }
 
                 mvmt
             }
         };
 
-        player_velocity.linvel = Vec3::ZERO; // reset player velocity
+        player_velocity.linvel = Vec3::ZERO; // Reset player velocity
 
         player_external_impulse.impulse = movement;
     }
@@ -753,39 +736,6 @@ fn update_pending_interactable(
     }
     if !in_range {
         next_pending_interactable.set(PendingInteractable(None));
-    }
-}
-
-fn handle_animation_change(
-    animations: Res<Animations>,
-    mut player_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
-    keys: Res<ButtonInput<KeyCode>>,
-    player_animation: Res<State<PlayerAnimation>>,
-    mut next_player_animation: ResMut<NextState<PlayerAnimation>>,
-) {
-    for (mut player, mut transitions) in player_query.iter_mut() {
-        let i = player_animation.get().0;
-        if keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]) {
-            if i != 0 {
-                next_player_animation.set(PlayerAnimation(0));
-                transitions
-                    .play(
-                        &mut player,
-                        animations.animations[0],
-                        Duration::from_millis(250),
-                    )
-                    .repeat();
-            }
-        } else if i != 2 {
-            next_player_animation.set(PlayerAnimation(2));
-            transitions
-                .play(
-                    &mut player,
-                    animations.animations[2],
-                    Duration::from_millis(250),
-                )
-                .repeat();
-        }
     }
 }
 
@@ -855,9 +805,8 @@ fn setup_animations(
     let animations = graph
         .add_clips(
             [
-                GltfAssetLabel::Animation(2).from_asset("Fox.glb"),
-                GltfAssetLabel::Animation(1).from_asset("Fox.glb"),
-                GltfAssetLabel::Animation(0).from_asset("Fox.glb"),
+                GltfAssetLabel::Animation(0).from_asset("Man.glb#Animation1"),
+                GltfAssetLabel::Animation(1).from_asset("Man.glb#Animation2"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -872,6 +821,62 @@ fn setup_animations(
         animations,
         graph: graph.clone(),
     });
+}
+
+fn play_player_animation(
+    mut commands: Commands,
+    animations: Res<Animations>,
+    mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+) {
+    for (entity, mut player) in &mut players {
+        let mut transitions = AnimationTransitions::new();
+
+        transitions
+            .play(&mut player, animations.animations[0], Duration::ZERO)
+            .repeat();
+
+        commands
+            .entity(entity)
+            .insert(animations.graph.clone())
+            .insert(transitions);
+    }
+}
+
+fn change_player_animation(
+    animations: Res<Animations>,
+    mut player_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+    keys: Res<ButtonInput<KeyCode>>,
+    player_animation: Res<State<PlayerAnimation>>,
+    mut next_player_animation: ResMut<NextState<PlayerAnimation>>,
+) {
+    for (mut player, mut transitions) in player_query.iter_mut() {
+        let is_moving =
+            keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]);
+        let i = player_animation.get().0;
+
+        if is_moving && i != 1 {
+            next_player_animation.set(PlayerAnimation(1));
+            transitions
+                .play(
+                    &mut player,
+                    animations.animations[1],
+                    Duration::from_millis(250),
+                )
+                .repeat();
+            return;
+        }
+
+        if !is_moving && i != 0 {
+            next_player_animation.set(PlayerAnimation(0));
+            transitions
+                .play(
+                    &mut player,
+                    animations.animations[0],
+                    Duration::from_millis(250),
+                )
+                .repeat();
+        }
+    }
 }
 
 fn main() {
@@ -930,8 +935,8 @@ fn main() {
                 manage_active_chunk,
                 handle_active_chunk_change,
                 handle_keyboard_input,
-                player_animations.before(animate_targets),
-                handle_animation_change,
+                play_player_animation.before(animate_targets),
+                change_player_animation,
             ),
         )
         .run();
