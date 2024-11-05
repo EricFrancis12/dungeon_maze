@@ -1,7 +1,7 @@
 mod maze;
 mod utils;
 
-use bevy::prelude::*;
+use bevy::{animation::animate_targets, prelude::*};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::{geometry, prelude::*};
 use bevy_third_person_camera::*;
@@ -12,6 +12,7 @@ use std::{
     env,
     f32::consts::PI,
     fmt::{Display, Formatter, Result},
+    time::Duration,
 };
 use utils::dev::write_mazes_to_html_file;
 
@@ -20,13 +21,13 @@ const CHUNK_SIZE: f32 = 16.0;
 const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_SIZE: f32 = 1.0;
-const DEFAULT_PLAYER_SPEED: f32 = 100.0;
+const DEFAULT_PLAYER_SPEED: f32 = 0.0001;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
 const CAMERA_Z: f32 = 5.0;
 const CAMERA_ZOOM_MIN: f32 = 1.0;
-const CAMERA_ZOOM_MAX: f32 = 1000.0;
+const CAMERA_ZOOM_MAX: f32 = 10.0;
 const CAMERA_SENSITIVITY: f32 = 2.0;
 
 const SEED: u32 = 1234;
@@ -45,12 +46,21 @@ impl Display for ArgName {
     }
 }
 
+#[derive(Resource)]
+struct Animations {
+    animations: Vec<AnimationNodeIndex>,
+    graph: Handle<AnimationGraph>,
+}
+
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum PlayerState {
     #[default]
     Walking,
     ClimbingLadder(String),
 }
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+struct PlayerAnimation(usize);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct PendingInteractable(Option<String>);
@@ -62,9 +72,6 @@ struct ActiveChunk(i64, i64, i64);
 struct ActiveChunkChange {
     value: ActiveChunk,
 }
-
-#[derive(Event)]
-struct PlayerMove;
 
 #[derive(Component)]
 struct Player;
@@ -111,7 +118,7 @@ struct Interactable {
     kind: InteractableKind,
 }
 
-#[derive(Clone, Component, PartialEq)]
+#[derive(Clone, Component, Debug, PartialEq)]
 struct ChunkCellMarker {
     chunk_x: i64,
     chunk_y: i64,
@@ -520,16 +527,18 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(camera_bundle);
 }
 
-fn spawn_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let mut transform = Transform::from_xyz(2.0, PLAYER_SIZE / 2.0, 2.0);
+    transform.scale = Vec3 {
+        x: 0.01,
+        y: 0.01,
+        z: 0.01,
+    };
+
     let player_bundle = (
-        PbrBundle {
-            mesh: meshes.add(Cuboid::new(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE)),
-            material: materials.add(Color::linear_rgba(0.0, 0.0, 0.3, 1.0)),
-            transform: Transform::from_xyz(2.0, PLAYER_SIZE / 2.0, 2.0),
+        SceneBundle {
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("Fox.glb")),
+            transform,
             ..default()
         },
         Collider(PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE),
@@ -550,6 +559,25 @@ fn spawn_player(
     commands.spawn(player_bundle);
 }
 
+fn player_animations(
+    mut commands: Commands,
+    animations: Res<Animations>,
+    mut players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+) {
+    for (entity, mut player) in &mut players {
+        let mut transitions = AnimationTransitions::new();
+
+        transitions
+            .play(&mut player, animations.animations[0], Duration::ZERO)
+            .repeat();
+
+        commands
+            .entity(entity)
+            .insert(animations.graph.clone())
+            .insert(transitions);
+    }
+}
+
 fn player_movement(
     mut player_query: Query<
         (
@@ -567,7 +595,6 @@ fn player_movement(
     mut next_player_state: ResMut<NextState<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut player_move_event_writer: EventWriter<PlayerMove>,
 ) {
     for (
         mut player_transform,
@@ -684,7 +711,13 @@ fn player_movement(
                 let mvmt = direction.normalize_or_zero() * player_speed.0 * time.delta_seconds();
 
                 if direction.length_squared() > 0.0 {
-                    player_transform.look_to(direction, Vec3::Y);
+                    let inv_direction = direction
+                        * Vec3 {
+                            x: -1.0,
+                            y: -1.0,
+                            z: -1.0,
+                        };
+                    player_transform.look_to(inv_direction, Vec3::Y);
                 }
 
                 mvmt
@@ -692,36 +725,66 @@ fn player_movement(
         };
 
         player_velocity.linvel = Vec3::ZERO; // reset player velocity
+
         player_external_impulse.impulse = movement;
-        player_move_event_writer.send(PlayerMove);
     }
 }
 
-fn handle_player_moved(
-    mut player_moved_event_reader: EventReader<PlayerMove>,
+fn update_pending_interactable(
     mut player_query: Query<&GlobalTransform, With<Player>>,
     interactables_query: Query<(&Interactable, &GlobalTransform)>,
     mut next_pending_interactable: ResMut<NextState<PendingInteractable>>,
 ) {
-    for _ in player_moved_event_reader.read() {
-        let player_gl_transform = player_query
-            .get_single_mut()
-            .expect("Error retrieving player");
-        let player_gl_translation = player_gl_transform.translation();
+    let player_gl_transform = player_query
+        .get_single_mut()
+        .expect("Error retrieving player");
+    let player_gl_translation = player_gl_transform.translation();
 
-        // Check if player is in range of any interactables
-        let mut in_range = false;
-        for (ibl, ibl_gl_transform) in interactables_query.iter() {
-            let dist = player_gl_translation.distance(ibl_gl_transform.translation());
+    // Check if player is in range of any interactables
+    let mut in_range = false;
+    for (ibl, ibl_gl_transform) in interactables_query.iter() {
+        let dist = player_gl_translation.distance(ibl_gl_transform.translation());
 
-            if dist <= ibl.range {
-                next_pending_interactable.set(PendingInteractable(Some(ibl.id.clone())));
-                in_range = true;
-                break;
-            }
+        if dist <= ibl.range {
+            next_pending_interactable.set(PendingInteractable(Some(ibl.id.clone())));
+            in_range = true;
+            break;
         }
-        if !in_range {
-            next_pending_interactable.set(PendingInteractable(None));
+    }
+    if !in_range {
+        next_pending_interactable.set(PendingInteractable(None));
+    }
+}
+
+fn handle_animation_change(
+    animations: Res<Animations>,
+    mut player_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+    keys: Res<ButtonInput<KeyCode>>,
+    player_animation: Res<State<PlayerAnimation>>,
+    mut next_player_animation: ResMut<NextState<PlayerAnimation>>,
+) {
+    for (mut player, mut transitions) in player_query.iter_mut() {
+        let i = player_animation.get().0;
+        if keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]) {
+            if i != 0 {
+                next_player_animation.set(PlayerAnimation(0));
+                transitions
+                    .play(
+                        &mut player,
+                        animations.animations[0],
+                        Duration::from_millis(250),
+                    )
+                    .repeat();
+            }
+        } else if i != 2 {
+            next_player_animation.set(PlayerAnimation(2));
+            transitions
+                .play(
+                    &mut player,
+                    animations.animations[2],
+                    Duration::from_millis(250),
+                )
+                .repeat();
         }
     }
 }
@@ -763,13 +826,13 @@ fn handle_keyboard_input(
                                 tl.z - interactable_collider.2 - half_player_size;
 
                             let y = player_transform.translation.y;
-                            player_transform.look_at(
+                            player_transform.look_to(
                                 Vec3 {
                                     x: tl.x,
                                     y,
                                     z: tl.z,
                                 },
-                                Dir3::Z,
+                                Dir3::Y,
                             );
 
                             next_player_state.set(PlayerState::ClimbingLadder(id));
@@ -780,6 +843,35 @@ fn handle_keyboard_input(
             }
         }
     }
+}
+
+fn setup_animations(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    // Build the animation graph
+    let mut graph = AnimationGraph::new();
+    let animations = graph
+        .add_clips(
+            [
+                GltfAssetLabel::Animation(2).from_asset("Fox.glb"),
+                GltfAssetLabel::Animation(1).from_asset("Fox.glb"),
+                GltfAssetLabel::Animation(0).from_asset("Fox.glb"),
+            ]
+            .into_iter()
+            .map(|path| asset_server.load(path)),
+            1.0,
+            graph.root,
+        )
+        .collect();
+
+    // Insert a resource with the current scene information
+    let graph = graphs.add(graph);
+    commands.insert_resource(Animations {
+        animations,
+        graph: graph.clone(),
+    });
 }
 
 fn main() {
@@ -819,17 +911,27 @@ fn main() {
         .init_state::<ActiveChunk>()
         .init_state::<PendingInteractable>()
         .init_state::<PlayerState>()
+        .init_state::<PlayerAnimation>()
         .add_event::<ActiveChunkChange>()
-        .add_event::<PlayerMove>()
-        .add_systems(Startup, (spawn_initial_chunks, spawn_camera, spawn_player))
+        .add_systems(
+            Startup,
+            (
+                setup_animations,
+                spawn_initial_chunks,
+                spawn_camera,
+                spawn_player,
+            ),
+        )
         .add_systems(
             Update,
             (
                 player_movement,
-                handle_player_moved,
+                update_pending_interactable,
                 manage_active_chunk,
                 handle_active_chunk_change,
                 handle_keyboard_input,
+                player_animations.before(animate_targets),
+                handle_animation_change,
             ),
         )
         .run();
