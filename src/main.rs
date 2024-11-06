@@ -1,4 +1,5 @@
 mod maze;
+#[cfg(test)]
 mod maze_test;
 mod utils;
 
@@ -7,19 +8,12 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
-use std::{
-    collections::HashSet,
-    env,
-    f32::consts::PI,
-    fmt::{Display, Formatter, Result},
-    time::Duration,
-};
+use std::{collections::HashSet, f32::consts::PI, time::Duration};
 use strum_macros::EnumIter;
-use utils::dev::write_mazes_to_html_file;
 
-const CELL_SIZE: f32 = 4.0;
-const CHUNK_SIZE: f32 = 16.0;
-const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
+pub const CELL_SIZE: f32 = 4.0;
+pub const CHUNK_SIZE: f32 = 16.0;
+pub const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 
 const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
@@ -38,21 +32,7 @@ const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
 const CHAIR_COLLIDER_HZ: f32 = 0.2;
 
-const SEED: u32 = 1234;
-const HTML_FILE_OUTPUT_PATH: &str = "maze.html";
-
-#[derive(Debug)]
-enum ArgName {
-    Html,
-}
-
-impl Display for ArgName {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match self {
-            ArgName::Html => write!(f, "html"),
-        }
-    }
-}
+pub const SEED: u32 = 1234;
 
 #[derive(Resource)]
 struct Animations {
@@ -101,7 +81,7 @@ struct Player;
 struct Speed(f32);
 
 #[derive(Component)]
-struct Chunk(i64, i64, i64);
+struct ChunkMarker((i64, i64, i64));
 
 #[derive(Clone, Debug, Default, EnumIter, PartialEq)]
 enum CellSpecial {
@@ -188,7 +168,7 @@ impl ChunkCellMarker {
     }
 }
 
-fn make_neighboring_xyz_chunks(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
+fn make_neighboring_chunks_xyz(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
     let (x, y, z) = chunk;
     (x - 1..=x + 1)
         .flat_map(|i| (y - 1..=y + 1).flat_map(move |j| (z - 1..=z + 1).map(move |k| (i, j, k))))
@@ -202,7 +182,7 @@ fn spawn_initial_chunks(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let chunks = make_neighboring_xyz_chunks((active_chunk.0, active_chunk.1, active_chunk.2));
+    let chunks = make_neighboring_chunks_xyz((active_chunk.0, active_chunk.1, active_chunk.2));
     for xyz in chunks {
         spawn_new_chunk_bundle(
             xyz,
@@ -273,7 +253,7 @@ fn manage_active_chunk(
 fn handle_active_chunk_change(
     mut active_chunk_change_event_reader: EventReader<ActiveChunkChange>,
     mut commands: Commands,
-    chunks_query: Query<(Entity, &Chunk)>,
+    chunks_query: Query<(Entity, &ChunkMarker)>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -283,7 +263,7 @@ fn handle_active_chunk_change(
         let new_active_chunk = event.value;
         next_active_chunk.set(event.value);
 
-        let new_chunks = make_neighboring_xyz_chunks((
+        let new_chunks = make_neighboring_chunks_xyz((
             new_active_chunk.0,
             new_active_chunk.1,
             new_active_chunk.2,
@@ -292,12 +272,11 @@ fn handle_active_chunk_change(
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
         // Despawn chunks that are not in the new chunks
-        for (chunk_entity, chunk) in chunks_query.iter() {
-            let xyz = (chunk.0, chunk.1, chunk.2);
-            if !new_chunks.contains(&xyz) {
+        for (chunk_entity, chunk_marker) in chunks_query.iter() {
+            if !new_chunks.contains(&chunk_marker.0) {
                 commands.entity(chunk_entity).despawn_recursive();
             }
-            existing_chunks.insert(xyz);
+            existing_chunks.insert(chunk_marker.0);
         }
 
         // Spawn new chunks that are not currently existing
@@ -333,7 +312,7 @@ fn spawn_new_chunk_bundle(
             ),
             ..default()
         },
-        Chunk(chunk_x, chunk_y, chunk_z),
+        ChunkMarker((chunk_x, chunk_y, chunk_z)),
         Name::new(format!("Chunk_({},{},{})", chunk_x, chunk_y, chunk_z)),
     );
 
@@ -353,11 +332,10 @@ fn spawn_new_chunk_bundle(
                 };
 
                 let cell_bundle = (
-                    TransformBundle {
-                        local: Transform::from_xyz(calc_floor_pos(x), 0.0, calc_floor_pos(z)),
+                    SpatialBundle {
+                        transform: Transform::from_xyz(calc_floor_pos(x), 0.0, calc_floor_pos(z)),
                         ..default()
                     },
-                    InheritedVisibility::default(),
                     cell.clone(),
                     ccm.clone(),
                     Name::new(format!("Cell_({},{})", x, z)),
@@ -805,7 +783,7 @@ fn update_pending_interactable(
     }
 }
 
-fn handle_keyboard_input(
+fn activate_pending_interactable(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<&mut Transform, With<Player>>,
     interactables_query: Query<(&Interactable, &GlobalTransform)>,
@@ -851,6 +829,7 @@ fn handle_keyboard_input(
                         }
                     },
                 }
+
                 return;
             }
         }
@@ -943,21 +922,6 @@ fn main() {
         CELL_SIZE,
     );
 
-    let args: Vec<String> = env::args().collect();
-
-    if args.contains(&ArgName::Html.to_string()) {
-        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let chunks = make_neighboring_xyz_chunks(DEFAULT_CHUNK_XYZ);
-
-        let mut mazes = vec![];
-        for (chunk_x, chunk_y, chunk_z) in chunks {
-            let maze = maze_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
-            mazes.push(maze);
-        }
-
-        write_mazes_to_html_file(&mazes, HTML_FILE_OUTPUT_PATH).unwrap();
-    }
-
     App::new()
         .register_type::<Speed>()
         .add_plugins((
@@ -988,7 +952,7 @@ fn main() {
                 update_pending_interactable,
                 manage_active_chunk,
                 handle_active_chunk_change,
-                handle_keyboard_input,
+                activate_pending_interactable,
                 play_player_animation.before(animate_targets),
                 change_player_animation,
             ),
