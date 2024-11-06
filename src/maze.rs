@@ -29,50 +29,16 @@ pub fn maze_from_xyz_seed(seed: u32, height: usize, width: usize, x: i64, y: i64
     let mut rng = rng_from_str(format!("{}-{}_{}_{}", seed, x, y, z));
     let mut maze = maze_from_rng(&mut rng, height, width);
 
-    let last_h = height - 1;
-    let last_w = width - 1;
+    let h = height / 2;
+    let w = width / 2;
 
-    // left and right walls (x axis)
-    for h in 0..height {
-        let mut x_minus_1_rng = rng_from_str(fmt_seed_str(
-            seed,
-            (x - 1, y, z, last_w, h),
-            (x, y, z, 0, h),
-        ));
-        if x_minus_1_rng.gen_bool(WALL_BREAK_PROB) {
-            maze[h][0].wall_left = false;
-        }
+    // left and right walls
+    maze[h][0].wall_left = false;
+    maze[h][width - 1].wall_right = false;
 
-        let mut x_plus_1_rng = rng_from_str(fmt_seed_str(
-            seed,
-            (x, y, z, last_w, h),
-            (x + 1, y, z, 0, h),
-        ));
-        if x_plus_1_rng.gen_bool(WALL_BREAK_PROB) {
-            maze[h][last_w].wall_right = false;
-        }
-    }
-
-    // top and bottom walls (z axis)
-    for w in 0..width {
-        let mut z_minus_1_rng = rng_from_str(fmt_seed_str(
-            seed,
-            (x, y, z - 1, w, last_h),
-            (x, y, z, w, 0),
-        ));
-        if z_minus_1_rng.gen_bool(WALL_BREAK_PROB) {
-            maze[0][w].wall_top = false;
-        }
-
-        let mut z_plus_1_rng = rng_from_str(fmt_seed_str(
-            seed,
-            (x, y, z, w, last_h),
-            (x, y, z + 1, w, 0),
-        ));
-        if z_plus_1_rng.gen_bool(WALL_BREAK_PROB) {
-            maze[last_h][w].wall_bottom = false;
-        }
-    }
+    // top and bottom walls
+    maze[0][w].wall_top = false;
+    maze[height - 1][w].wall_bottom = false;
 
     // ceiling and floor (y axis)
     for h in 0..height {

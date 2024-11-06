@@ -8,7 +8,6 @@ use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{
-    borrow::Cow,
     collections::HashSet,
     env,
     f32::consts::PI,
@@ -117,9 +116,9 @@ impl CellSpecial {
     fn spawn_prob(&self) -> f64 {
         match self {
             CellSpecial::None => 0.0,
-            CellSpecial::Ladder => 0.08,
-            CellSpecial::Slope => 0.08,
-            CellSpecial::Chair => 0.06,
+            CellSpecial::Ladder => 0.40,
+            CellSpecial::Slope => 0.40,
+            CellSpecial::Chair => 0.48,
         }
     }
 }
@@ -320,8 +319,8 @@ fn spawn_new_chunk_bundle(
     (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
-    mut meshes: &mut ResMut<Assets<Mesh>>,
-    mut materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     let chunk_bundle = (
         PbrBundle {
@@ -483,11 +482,15 @@ fn spawn_new_chunk_bundle(
                         let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
                         transform.rotate(z_90_deg_rotation);
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Top Wall",
-                            transform,
-                            &mut meshes,
-                            &mut materials,
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
+                                transform,
+                                ..default()
+                            },
+                            Name::new("Top Wall"),
                         ));
                     }
 
@@ -498,11 +501,15 @@ fn spawn_new_chunk_bundle(
                         let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
                         transform.rotate(x_270_deg_rotation);
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Left Wall",
-                            transform,
-                            &mut meshes,
-                            &mut materials,
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
+                                transform,
+                                ..default()
+                            },
+                            Name::new("Left Wall"),
                         ));
                     }
 
@@ -513,11 +520,16 @@ fn spawn_new_chunk_bundle(
                         let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
                         transform.rotate(z_270_deg_rotation);
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Bottom Wall",
-                            transform,
-                            &mut meshes,
-                            &mut materials,
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
+                                transform,
+                                ..default()
+                            },
+                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Name::new("Bottom Wall"),
                         ));
                     }
 
@@ -528,35 +540,22 @@ fn spawn_new_chunk_bundle(
                         let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
                         transform.rotate(x_90_deg_rotation);
 
-                        grandparent.spawn(new_cell_wall_bundle(
-                            "Right Wall",
-                            transform,
-                            &mut meshes,
-                            &mut materials,
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: meshes
+                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
+                                transform,
+                                ..default()
+                            },
+                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Name::new("Right Wall"),
                         ));
                     }
                 });
             }
         }
     });
-}
-
-fn new_cell_wall_bundle(
-    name: impl Into<Cow<'static, str>>,
-    transform: Transform,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-) -> impl Bundle {
-    (
-        PbrBundle {
-            mesh: meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-            material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
-            transform,
-            ..default()
-        },
-        Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
-        Name::new(name),
-    )
 }
 
 fn calc_floor_pos(index: usize) -> f32 {
