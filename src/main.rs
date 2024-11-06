@@ -10,6 +10,7 @@ use bevy_third_person_camera::*;
 use maze::{calc_maze_dims, maze_from_xyz_seed};
 use std::{collections::HashSet, f32::consts::PI, time::Duration};
 use strum_macros::EnumIter;
+use utils::noise::noise_from_xyz_seed;
 
 pub const CELL_SIZE: f32 = 4.0;
 pub const CHUNK_SIZE: f32 = 16.0;
@@ -18,8 +19,9 @@ pub const DEFAULT_CHUNK_XYZ: (i64, i64, i64) = (0, 0, 0);
 const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
 const PLAYER_COLLIDER_HZ: f32 = 0.4;
+const DEFAULT_PLAYER_SPEED: f32 = 450.0;
+const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 70.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
-const DEFAULT_PLAYER_SPEED: f32 = 300.0;
 
 const CAMERA_X: f32 = -2.0;
 const CAMERA_Y: f32 = 2.5;
@@ -70,8 +72,8 @@ struct PendingInteractable(Option<String>);
 struct ActiveChunk(i64, i64, i64);
 
 #[derive(Event)]
-struct ActiveChunkChange {
-    value: ActiveChunk,
+struct ActiveChunkChangeEvent {
+    value: ChunkMarker,
 }
 
 #[derive(Component)]
@@ -88,7 +90,6 @@ enum CellSpecial {
     #[default]
     None,
     Ladder,
-    Slope,
     Chair,
 }
 
@@ -97,7 +98,6 @@ impl CellSpecial {
         match self {
             CellSpecial::None => 0.0,
             CellSpecial::Ladder => 0.40,
-            CellSpecial::Slope => 0.40,
             CellSpecial::Chair => 0.48,
         }
     }
@@ -195,7 +195,7 @@ fn spawn_initial_chunks(
 }
 
 fn manage_active_chunk(
-    mut active_chunk_change_event_writer: EventWriter<ActiveChunkChange>,
+    mut active_chunk_change_event_writer: EventWriter<ActiveChunkChangeEvent>,
     player_query: Query<&GlobalTransform, With<Player>>,
     active_chunk: Res<State<ActiveChunk>>,
 ) {
@@ -246,12 +246,14 @@ fn manage_active_chunk(
         || z_min_crossed
         || z_max_crossed
     {
-        active_chunk_change_event_writer.send(ActiveChunkChange { value: chunk });
+        active_chunk_change_event_writer.send(ActiveChunkChangeEvent {
+            value: ChunkMarker((chunk.0, chunk.1, chunk.2)),
+        });
     }
 }
 
 fn handle_active_chunk_change(
-    mut active_chunk_change_event_reader: EventReader<ActiveChunkChange>,
+    mut active_chunk_change_event_reader: EventReader<ActiveChunkChangeEvent>,
     mut commands: Commands,
     chunks_query: Query<(Entity, &ChunkMarker)>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
@@ -260,14 +262,10 @@ fn handle_active_chunk_change(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for event in active_chunk_change_event_reader.read() {
-        let new_active_chunk = event.value;
-        next_active_chunk.set(event.value);
+        let (x, y, z) = event.value.0;
+        next_active_chunk.set(ActiveChunk(x, y, z));
 
-        let new_chunks = make_neighboring_chunks_xyz((
-            new_active_chunk.0,
-            new_active_chunk.1,
-            new_active_chunk.2,
-        ));
+        let new_chunks = make_neighboring_chunks_xyz((x, y, z));
 
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
@@ -366,26 +364,6 @@ fn spawn_new_chunk_bundle(
                                 Name::new("Ladder"),
                             ));
                         }
-                        CellSpecial::Slope => {
-                            let mut transform = Transform::from_xyz(0.0, CELL_SIZE / 2.0, 0.0);
-                            let z_45_deg_rotation = Quat::from_rotation_z(PI / 4.0);
-                            transform.rotate(z_45_deg_rotation);
-
-                            let cell_size_squared = CELL_SIZE.powi(2);
-                            let height = (cell_size_squared + cell_size_squared).sqrt(); // calculate hypotenuse
-
-                            grandparent.spawn((
-                                PbrBundle {
-                                    mesh: meshes
-                                        .add(Plane3d::default().mesh().size(height, CELL_SIZE)),
-                                    material: materials.add(Color::linear_rgba(0.3, 0.2, 0.7, 1.0)),
-                                    transform,
-                                    ..default()
-                                },
-                                Collider::cuboid(height / 2.0, 0.1, CELL_SIZE / 2.0),
-                                Name::new("Slope"),
-                            ));
-                        }
                         CellSpecial::Chair => {
                             grandparent
                                 .spawn((
@@ -397,6 +375,7 @@ fn spawn_new_chunk_bundle(
                                         ),
                                         ..default()
                                     },
+                                    RigidBody::Dynamic,
                                     Collider::cuboid(
                                         CHAIR_COLLIDER_HX,
                                         CHAIR_COLLIDER_HY,
@@ -407,7 +386,7 @@ fn spawn_new_chunk_bundle(
                                 .with_children(|ggp| {
                                     ggp.spawn((
                                         SceneBundle {
-                                            scene: asset_server.load("Chair.glb#Scene0"),
+                                            scene: asset_server.load("models/Chair.glb#Scene0"),
                                             transform: Transform::from_xyz(
                                                 0.0,
                                                 -CHAIR_COLLIDER_HY,
@@ -421,12 +400,13 @@ fn spawn_new_chunk_bundle(
                         }
                     }
 
+                    let mesh = meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE));
+
                     // Floor
                     if cell.floor {
                         grandparent.spawn((
                             PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                mesh: mesh.clone(),
                                 material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
                                 ..default()
                             },
@@ -437,73 +417,66 @@ fn spawn_new_chunk_bundle(
 
                     // Ceiling
                     if cell.ceiling {
-                        let mut transform = Transform::default();
-                        let x_180_deg_rotation = Quat::from_rotation_x(PI);
-                        transform.rotate(x_180_deg_rotation);
-
                         grandparent.spawn((
                             PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
+                                mesh: mesh.clone(),
                                 material: materials.add(Color::linear_rgba(0.0, 0.2, 0.4, 1.0)),
-                                transform,
+                                transform: Transform::default()
+                                    .with_rotation(Quat::from_rotation_x(PI)),
                                 ..default()
                             },
                             Name::new("Ceiling"),
                         ));
                     }
 
+                    let noise_xyz = noise_from_xyz_seed(SEED, chunk_x, chunk_y, chunk_z);
+
+                    let path = if noise_xyz < -0.2 {
+                        "images/wall-1.png"
+                    } else if noise_xyz < 0.0 {
+                        "images/wall-2.png"
+                    } else if noise_xyz < 0.2 {
+                        "images/wall-3.png"
+                    } else {
+                        "images/wall-4.png"
+                    };
+                    let wall_texture_handle = asset_server.load(path);
+                    let material = materials.add(StandardMaterial {
+                        base_color: Color::WHITE,
+                        base_color_texture: Some(wall_texture_handle),
+                        ..Default::default()
+                    });
+
                     // Top wall
                     if cell.wall_top {
-                        let mut transform =
-                            Transform::from_xyz(CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                        let z_90_deg_rotation = Quat::from_rotation_z(PI / 2.0);
-                        transform.rotate(z_90_deg_rotation);
-
                         grandparent.spawn((
                             PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
-                                transform,
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
+                                )
+                                .with_rotation(Quat::from_rotation_z(PI / 2.0)),
                                 ..default()
                             },
                             Name::new("Top Wall"),
                         ));
                     }
 
-                    // Left wall
-                    if cell.wall_left {
-                        let mut transform =
-                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, CELL_SIZE / 2.0);
-                        let x_270_deg_rotation = Quat::from_rotation_x(PI * 3.0 / 2.0);
-                        transform.rotate(x_270_deg_rotation);
-
-                        grandparent.spawn((
-                            PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
-                                transform,
-                                ..default()
-                            },
-                            Name::new("Left Wall"),
-                        ));
-                    }
-
                     // Bottom wall
                     if cell.wall_bottom {
-                        let mut transform =
-                            Transform::from_xyz(-CELL_SIZE / 2.0, CELL_SIZE / 2.0, 0.0);
-                        let z_270_deg_rotation = Quat::from_rotation_z(PI * 3.0 / 2.0);
-                        transform.rotate(z_270_deg_rotation);
-
                         grandparent.spawn((
                             PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
-                                transform,
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    -CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
+                                )
+                                .with_rotation(Quat::from_rotation_z(PI * 3.0 / 2.0)),
                                 ..default()
                             },
                             Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
@@ -511,19 +484,36 @@ fn spawn_new_chunk_bundle(
                         ));
                     }
 
-                    // Right wall
-                    if cell.wall_right {
-                        let mut transform =
-                            Transform::from_xyz(0.0, CELL_SIZE / 2.0, -CELL_SIZE / 2.0);
-                        let x_90_deg_rotation = Quat::from_rotation_x(PI / 2.0);
-                        transform.rotate(x_90_deg_rotation);
-
+                    // Left wall
+                    if cell.wall_left {
                         grandparent.spawn((
                             PbrBundle {
-                                mesh: meshes
-                                    .add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE)),
-                                material: materials.add(Color::linear_rgba(0.15, 0.0, 0.55, 1.0)),
-                                transform,
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    0.0,
+                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0,
+                                )
+                                .with_rotation(Quat::from_rotation_x(PI * 3.0 / 2.0)),
+                                ..default()
+                            },
+                            Name::new("Left Wall"),
+                        ));
+                    }
+
+                    // Right wall
+                    if cell.wall_right {
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    0.0,
+                                    CELL_SIZE / 2.0,
+                                    -CELL_SIZE / 2.0,
+                                )
+                                .with_rotation(Quat::from_rotation_x(PI / 2.0)),
                                 ..default()
                             },
                             Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
@@ -582,7 +572,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         Collider::cuboid(PLAYER_COLLIDER_HX, PLAYER_COLLIDER_HY, PLAYER_COLLIDER_HZ),
         ExternalImpulse::default(),
         Velocity::default(),
-        GravityScale(30.0),
+        GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
         LockedAxes::ROTATION_LOCKED_X
             | LockedAxes::ROTATION_LOCKED_Y
             | LockedAxes::ROTATION_LOCKED_Z,
@@ -596,12 +586,22 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((
             SceneBundle {
                 scene: asset_server.load(
-                    GltfAssetLabel::Scene(PlayerAnimation::Idle.index()).from_asset("Man.glb"),
+                    GltfAssetLabel::Scene(PlayerAnimation::Idle.index())
+                        .from_asset("models/Man.glb"),
                 ),
                 transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
                 ..default()
             },
             Name::new("Player Model"),
+        ));
+
+        parent.spawn((
+            SpotLightBundle {
+                transform: Transform::from_xyz(0.0, 0.0, 0.5)
+                    .with_rotation(Quat::from_rotation_y(PI)),
+                ..default()
+            },
+            Name::new("Spotlight"),
         ));
     });
 }
@@ -847,9 +847,9 @@ fn setup_animations(
         .add_clips(
             [
                 GltfAssetLabel::Animation(PlayerAnimation::Idle.index())
-                    .from_asset("Man.glb#Animation1"),
+                    .from_asset("models/Man.glb#Animation1"),
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
-                    .from_asset("Man.glb#Animation2"),
+                    .from_asset("models/Man.glb#Animation2"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -927,7 +927,6 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin::default(),
             ThirdPersonCameraPlugin,
             WorldInspectorPlugin::new(),
         ))
@@ -935,7 +934,7 @@ fn main() {
         .init_state::<PendingInteractable>()
         .init_state::<PlayerState>()
         .init_state::<PlayerAnimation>()
-        .add_event::<ActiveChunkChange>()
+        .add_event::<ActiveChunkChangeEvent>()
         .add_systems(
             Startup,
             (

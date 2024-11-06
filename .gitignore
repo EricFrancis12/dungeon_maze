@@ -1,4 +1,4 @@
 /target
 
-maze.html
-*.blend
+**/*.html
+**/*.blend

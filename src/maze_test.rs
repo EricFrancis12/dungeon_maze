@@ -83,7 +83,7 @@ fn test_maze_from_xyz_seed() {
 
 #[test]
 fn write_initial_chunks_to_html_file() {
-    let output_path = "maze.html";
+    let output_path = "initial_chunks_map.html";
 
     let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
 
