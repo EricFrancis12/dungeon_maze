@@ -15,6 +15,7 @@ use std::{
     fmt::{Display, Formatter, Result},
     time::Duration,
 };
+use strum_macros::EnumIter;
 use utils::dev::write_mazes_to_html_file;
 
 const CELL_SIZE: f32 = 4.0;
@@ -103,13 +104,24 @@ struct Speed(f32);
 #[derive(Component)]
 struct Chunk(i64, i64, i64);
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, EnumIter, PartialEq)]
 enum CellSpecial {
     #[default]
     None,
     Ladder,
     Slope,
     Chair,
+}
+
+impl CellSpecial {
+    fn spawn_prob(&self) -> f64 {
+        match self {
+            CellSpecial::None => 0.0,
+            CellSpecial::Ladder => 0.08,
+            CellSpecial::Slope => 0.08,
+            CellSpecial::Chair => 0.06,
+        }
+    }
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -329,7 +341,7 @@ fn spawn_new_chunk_bundle(
     commands.spawn(chunk_bundle).with_children(|parent| {
         // One maze is created per chunk
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let maze = &maze_from_xyz_seed(chunk_x, chunk_y, chunk_z, SEED, height, width);
+        let maze = &maze_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
 
         for (x, row) in maze.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
@@ -940,7 +952,7 @@ fn main() {
 
         let mut mazes = vec![];
         for (chunk_x, chunk_y, chunk_z) in chunks {
-            let maze = maze_from_xyz_seed(chunk_x, chunk_y, chunk_z, SEED, height, width);
+            let maze = maze_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
             mazes.push(maze);
         }
 
