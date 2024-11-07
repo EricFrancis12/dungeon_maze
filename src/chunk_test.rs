@@ -17,7 +17,7 @@ fn write_initial_chunks_to_html_file() {
     let mut mazes_y = vec![];
     let mut mazes_y_plus_1 = vec![];
 
-    for (x, y, z) in make_neighboring_chunks_xyz(DEFAULT_CHUNK_XYZ) {
+    for (x, y, z) in make_neighboring_chunks_xyz(DEFAULT_CHUNK_XYZ, 1, 1, 1) {
         let maze = chunk_from_xyz_seed(SEED, height, width, x, y, z);
         match y {
             -1 => mazes_y_minus_1.push(maze),

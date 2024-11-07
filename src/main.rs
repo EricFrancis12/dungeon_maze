@@ -1,7 +1,9 @@
 mod chunk;
 #[cfg(test)]
 mod chunk_test;
+mod error;
 mod maze;
+mod save;
 mod utils;
 
 use bevy::{animation::animate_targets, prelude::*};
@@ -10,6 +12,8 @@ use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
 use chunk::chunk_from_xyz_seed;
 use maze::calc_maze_dims;
+use save::{read_game_save, write_game_save};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, f32::consts::PI, time::Duration};
 use strum_macros::EnumIter;
 use utils::noise::noise_from_xyz_seed;
@@ -72,6 +76,25 @@ struct PendingInteractable(Option<String>);
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveChunk(i64, i64, i64);
+
+#[derive(Default, Deserialize, Serialize)]
+struct GameSave {
+    game_settings: GameSettings,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize, States)]
+struct GameSettings {
+    chunk_render_dist: ChunkRenderDist,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+struct ChunkRenderDist(u32, u32, u32);
+
+impl Default for ChunkRenderDist {
+    fn default() -> Self {
+        Self(1, 1, 1)
+    }
+}
 
 #[derive(Event)]
 struct ActiveChunkChangeEvent {
@@ -170,21 +193,41 @@ impl ChunkCellMarker {
     }
 }
 
-fn make_neighboring_chunks_xyz(chunk: (i64, i64, i64)) -> Vec<(i64, i64, i64)> {
+fn make_neighboring_chunks_xyz(
+    chunk: (i64, i64, i64),
+    x_rend_dist: u32,
+    y_rend_dist: u32,
+    z_rend_dist: u32,
+) -> Vec<(i64, i64, i64)> {
+    if x_rend_dist == 0 || y_rend_dist == 0 || z_rend_dist == 0 {
+        return Vec::new();
+    }
     let (x, y, z) = chunk;
-    (x - 1..=x + 1)
-        .flat_map(|i| (y - 1..=y + 1).flat_map(move |j| (z - 1..=z + 1).map(move |k| (i, j, k))))
+    let x_r = x_rend_dist as i64 - 1;
+    let y_r = y_rend_dist as i64 - 1;
+    let z_r = z_rend_dist as i64 - 1;
+    (x - x_r..=x + x_r)
+        .flat_map(|i| {
+            (y - y_r..=y + y_r).flat_map(move |j| (z - z_r..=z + z_r).map(move |k| (i, j, k)))
+        })
         .collect()
 }
 
 fn spawn_initial_chunks(
     mut commands: Commands,
     active_chunk: Res<State<ActiveChunk>>,
+    game_settings: Res<State<GameSettings>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let chunks = make_neighboring_chunks_xyz((active_chunk.0, active_chunk.1, active_chunk.2));
+    let render_dist = game_settings.chunk_render_dist;
+    let chunks = make_neighboring_chunks_xyz(
+        (active_chunk.0, active_chunk.1, active_chunk.2),
+        render_dist.0,
+        render_dist.1,
+        render_dist.2,
+    );
     for xyz in chunks {
         spawn_new_chunk_bundle(
             xyz,
@@ -259,6 +302,7 @@ fn handle_active_chunk_change(
     mut commands: Commands,
     chunks_query: Query<(Entity, &ChunkMarker)>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
+    game_settings: Res<State<GameSettings>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -267,7 +311,9 @@ fn handle_active_chunk_change(
         let (x, y, z) = event.value.0;
         next_active_chunk.set(ActiveChunk(x, y, z));
 
-        let new_chunks = make_neighboring_chunks_xyz((x, y, z));
+        let render_dist = game_settings.chunk_render_dist;
+        let new_chunks =
+            make_neighboring_chunks_xyz((x, y, z), render_dist.0, render_dist.1, render_dist.2);
 
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
@@ -915,6 +961,44 @@ fn change_player_animation(
     }
 }
 
+fn setup_from_save_data(mut next_game_settings: ResMut<NextState<GameSettings>>) {
+    let game_save = read_game_save().unwrap();
+    next_game_settings.set(game_save.game_settings);
+}
+
+fn change_game_settings(
+    keys: Res<ButtonInput<KeyCode>>,
+    game_settings: Res<State<GameSettings>>,
+    mut next_game_settings: ResMut<NextState<GameSettings>>,
+    active_chunk: Res<State<ActiveChunk>>,
+    mut active_chunk_change_event_writer: EventWriter<ActiveChunkChangeEvent>,
+) {
+    let dist = if keys.just_released(KeyCode::Numpad0) {
+        0
+    } else if keys.just_released(KeyCode::Numpad1) {
+        1
+    } else if keys.just_released(KeyCode::Numpad2) {
+        2
+    } else if keys.just_released(KeyCode::Numpad3) {
+        3
+    } else {
+        return;
+    };
+
+    let mut new_game_settings = game_settings.clone();
+    new_game_settings.chunk_render_dist = ChunkRenderDist(dist, dist, dist);
+    next_game_settings.set(new_game_settings);
+
+    active_chunk_change_event_writer.send(ActiveChunkChangeEvent {
+        value: ChunkMarker((active_chunk.0, active_chunk.1, active_chunk.2)),
+    });
+
+    write_game_save(GameSave {
+        game_settings: new_game_settings,
+    })
+    .unwrap();
+}
+
 fn main() {
     assert_eq!(
         CHUNK_SIZE % CELL_SIZE,
@@ -933,6 +1017,7 @@ fn main() {
             WorldInspectorPlugin::new(),
         ))
         .init_state::<ActiveChunk>()
+        .init_state::<GameSettings>()
         .init_state::<PendingInteractable>()
         .init_state::<PlayerState>()
         .init_state::<PlayerAnimation>()
@@ -940,6 +1025,7 @@ fn main() {
         .add_systems(
             Startup,
             (
+                setup_from_save_data,
                 setup_animations,
                 spawn_initial_chunks,
                 spawn_camera,
@@ -951,6 +1037,7 @@ fn main() {
             (
                 player_movement,
                 update_pending_interactable,
+                change_game_settings,
                 manage_active_chunk,
                 handle_active_chunk_change,
                 activate_pending_interactable,
