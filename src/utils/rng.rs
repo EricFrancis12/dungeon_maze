@@ -23,3 +23,11 @@ pub fn rng_from_str(s: impl Into<String>) -> StdRng {
     let seed = seed_from_str(s.into());
     seed_to_rng(seed)
 }
+
+pub fn rng_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> StdRng {
+    rng_from_str(fmt_seed_str(seed, x, y, z))
+}
+
+fn fmt_seed_str(seed: u32, x: i64, y: i64, z: i64) -> String {
+    format!("{}-{}_{}_{}", seed, x, y, z)
+}

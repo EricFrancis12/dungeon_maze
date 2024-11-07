@@ -1,13 +1,7 @@
-use crate::{
-    utils::rng::{rng_from_str, seed_to_rng},
-    Cell, CellSpecial,
-};
+use crate::{utils::rng::seed_to_rng, Cell, CellSpecial};
 
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashSet;
-use strum::IntoEnumIterator;
-
-const WALL_BREAK_PROB: f64 = 0.2;
 
 pub type Maze = Vec<Vec<Cell>>;
 
@@ -23,68 +17,6 @@ pub fn calc_maze_dims(chunk_size: f32, cell_size: f32) -> (usize, usize) {
 fn _maze_from_seed(seed: u32, height: usize, width: usize) -> Maze {
     let mut rng = seed_to_rng(seed);
     maze_from_rng(&mut rng, height, width)
-}
-
-pub fn maze_from_xyz_seed(seed: u32, height: usize, width: usize, x: i64, y: i64, z: i64) -> Maze {
-    let mut rng = rng_from_str(format!("{}-{}_{}_{}", seed, x, y, z));
-    let mut maze = maze_from_rng(&mut rng, height, width);
-
-    let h = height / 2;
-    let w = width / 2;
-
-    // left and right walls
-    maze[h][0].wall_left = false;
-    maze[h][width - 1].wall_right = false;
-
-    // top and bottom walls
-    maze[0][w].wall_top = false;
-    maze[height - 1][w].wall_bottom = false;
-
-    // ceiling and floor (y axis)
-    for h in 0..height {
-        for w in 0..width {
-            let mut y_minus_1_rng =
-                rng_from_str(fmt_seed_str(seed, (x, y - 1, z, w, h), (x, y, z, w, h)));
-            if y_minus_1_rng.gen_bool(WALL_BREAK_PROB) {
-                maze[h][w].floor = false;
-            }
-
-            let mut y_plus_1_rng =
-                rng_from_str(fmt_seed_str(seed, (x, y, z, w, h), (x, y + 1, z, w, h)));
-            if y_plus_1_rng.gen_bool(WALL_BREAK_PROB) {
-                maze[h][w].ceiling = false;
-            }
-        }
-    }
-
-    let mut floored_cells: Vec<(usize, usize)> = Vec::new();
-    for h in 0..height {
-        for w in 0..width {
-            if maze[h][w].floor {
-                floored_cells.push((w, h));
-            }
-        }
-    }
-
-    let rand_floored_cell = |r: &mut StdRng, fc: &mut Vec<(usize, usize)>| {
-        let i = r.gen_range(0..fc.len());
-        let (w, h) = fc[i];
-        fc.splice(i..i + 1, []);
-        (w, h)
-    };
-
-    for spec in CellSpecial::iter() {
-        if floored_cells.is_empty() {
-            break;
-        }
-
-        if rng.gen_bool(spec.spawn_prob()) {
-            let (w, h) = rand_floored_cell(&mut rng, &mut floored_cells);
-            maze[h][w].special = spec;
-        }
-    }
-
-    maze
 }
 
 pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
@@ -172,17 +104,4 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
     }
 
     maze
-}
-
-fn fmt_seed_str(
-    seed: u32,
-    greater_nei: (i64, i64, i64, usize, usize),
-    less_nei: (i64, i64, i64, usize, usize),
-) -> String {
-    let (g_chunk_x, g_chunk_y, g_chunk_z, g_x, g_z) = greater_nei;
-    let (l_chunk_x, l_chunk_y, l_chunk_z, l_x, l_z) = less_nei;
-    format!(
-        "{}-{}_{}_{}_{}_{}-{}_{}_{}_{}_{}",
-        seed, g_chunk_x, g_chunk_y, g_chunk_z, g_x, g_z, l_chunk_x, l_chunk_y, l_chunk_z, l_x, l_z,
-    )
 }

@@ -1,13 +1,15 @@
-mod maze;
+mod chunk;
 #[cfg(test)]
-mod maze_test;
+mod chunk_test;
+mod maze;
 mod utils;
 
 use bevy::{animation::animate_targets, prelude::*};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
-use maze::{calc_maze_dims, maze_from_xyz_seed};
+use chunk::chunk_from_xyz_seed;
+use maze::calc_maze_dims;
 use std::{collections::HashSet, f32::consts::PI, time::Duration};
 use strum_macros::EnumIter;
 use utils::noise::noise_from_xyz_seed;
@@ -59,8 +61,8 @@ enum PlayerAnimation {
 impl PlayerAnimation {
     fn index(&self) -> usize {
         match self {
-            PlayerAnimation::Idle => 0,
-            PlayerAnimation::Jogging => 1,
+            Self::Idle => 0,
+            Self::Jogging => 1,
         }
     }
 }
@@ -96,9 +98,9 @@ enum CellSpecial {
 impl CellSpecial {
     fn spawn_prob(&self) -> f64 {
         match self {
-            CellSpecial::None => 0.0,
-            CellSpecial::Ladder => 0.40,
-            CellSpecial::Chair => 0.48,
+            Self::None => 0.0,
+            Self::Ladder => 0.40,
+            Self::Chair => 0.48,
         }
     }
 }
@@ -158,7 +160,7 @@ impl ChunkCellMarker {
             - ((offset_z - (chunk_z as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
             as usize;
 
-        ChunkCellMarker {
+        Self {
             chunk_x,
             chunk_y,
             chunk_z,
@@ -317,9 +319,9 @@ fn spawn_new_chunk_bundle(
     commands.spawn(chunk_bundle).with_children(|parent| {
         // One maze is created per chunk
         let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let maze = &maze_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
+        let chunk = &chunk_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
 
-        for (x, row) in maze.iter().enumerate() {
+        for (x, row) in chunk.cells.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
                 let ccm = ChunkCellMarker {
                     chunk_x,
