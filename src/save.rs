@@ -1,14 +1,49 @@
-use crate::error::Error;
-use crate::GameSave;
+use crate::{
+    error::Error,
+    settings::{GameSettings, GameSettingsChanged},
+};
 
+use bevy::prelude::*;
 use platform_dirs::AppDirs;
+use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
 const DATA_DIR_NAME: &str = "backrooms-maze";
 const SAVE_DIR_NAME: &str = "saves";
 const SAVE_FILE_NAME: &str = "backrooms-maze-save.json";
 
-pub fn read_game_save() -> Result<GameSave, Error> {
+pub struct GameSavePlugin;
+
+impl Plugin for GameSavePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, load_save_data)
+            .add_systems(Update, handle_save_game);
+    }
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct GameSave {
+    pub game_settings: GameSettings,
+}
+
+fn load_save_data(mut next_game_settings: ResMut<NextState<GameSettings>>) {
+    let game_save = read_game_save().unwrap();
+    next_game_settings.set(game_save.game_settings);
+}
+
+fn handle_save_game(
+    mut event_reader: EventReader<GameSettingsChanged>,
+    game_settings: Res<State<GameSettings>>,
+) {
+    for _ in event_reader.read() {
+        write_game_save(GameSave {
+            game_settings: game_settings.clone(),
+        })
+        .unwrap();
+    }
+}
+
+fn read_game_save() -> Result<GameSave, Error> {
     let save_file_path = get_save_file_path(SAVE_FILE_NAME);
     if !fs::exists(get_data_dir_path())? || !fs::exists(&save_file_path)? {
         return Ok(GameSave::default());
@@ -24,7 +59,7 @@ pub fn read_game_save() -> Result<GameSave, Error> {
     Ok(game_save)
 }
 
-pub fn write_game_save(game_save: GameSave) -> Result<(), Error> {
+fn write_game_save(game_save: GameSave) -> Result<(), Error> {
     let data_dir_path = get_data_dir_path();
     if !fs::exists(&data_dir_path)? {
         fs::create_dir(data_dir_path)?;

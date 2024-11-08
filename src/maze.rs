@@ -1,4 +1,7 @@
-use crate::{utils::rng::seed_to_rng, Cell, CellSpecial};
+use crate::{
+    utils::rng::seed_to_rng,
+    world::{Cell, CellSpecial},
+};
 
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashSet;

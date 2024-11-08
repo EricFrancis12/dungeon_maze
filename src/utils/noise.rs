@@ -1,4 +1,4 @@
-use crate::{CELL_SIZE, CHUNK_SIZE};
+use crate::world::{CELL_SIZE, CHUNK_SIZE};
 
 use noise::{NoiseFn, Perlin};
 
