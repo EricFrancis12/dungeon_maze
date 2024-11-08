@@ -1,4 +1,4 @@
-use crate::animation::PlayerAnimation;
+use crate::animation::{ContinuousAnimation, PlayerAnimation};
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
@@ -69,6 +69,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
                 transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
                 ..default()
             },
+            ContinuousAnimation,
             Name::new("Player Model"),
         ));
 

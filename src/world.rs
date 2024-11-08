@@ -394,7 +394,10 @@ fn spawn_new_chunk_bundle(
                                 .with_children(|ggp| {
                                     ggp.spawn((
                                         SceneBundle {
-                                            scene: asset_server.load("models/Chair.glb#Scene0"),
+                                            scene: asset_server.load(
+                                                GltfAssetLabel::Scene(0)
+                                                    .from_asset("models/Chair.glb"),
+                                            ),
                                             transform: Transform::from_xyz(
                                                 0.0,
                                                 -CHAIR_COLLIDER_HY,
@@ -429,10 +432,10 @@ fn spawn_new_chunk_bundle(
                                 .with_children(|ggp| {
                                     ggp.spawn((
                                         SceneBundle {
-                                            scene: asset_server
-                                                .load(GltfAssetLabel::Scene(0).from_asset(
-                                                    "models/Treasure_Chest.glb#Scene0",
-                                                )),
+                                            scene: asset_server.load(
+                                                GltfAssetLabel::Scene(0)
+                                                    .from_asset("models/Man.glb"),
+                                            ),
                                             transform: Transform::from_xyz(
                                                 0.0,
                                                 -CHAIR_COLLIDER_HY,

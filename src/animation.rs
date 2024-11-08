@@ -1,7 +1,10 @@
 use bevy::{animation::animate_targets, prelude::*};
 use std::time::Duration;
 
-use crate::interaction::{Interactable, PendingInteractionExecuted};
+use crate::{
+    interaction::{Interactable, PendingInteractionExecuted},
+    utils::entity::{get_n_parent, get_top_parent},
+};
 
 pub struct AnimationPlugin;
 
@@ -43,6 +46,9 @@ impl PlayerAnimation {
 }
 
 #[derive(Component)]
+pub struct ContinuousAnimation;
+
+#[derive(Component)]
 pub struct CyclicAnimation {
     curr: u32,
     max: u32,
@@ -75,10 +81,10 @@ fn setup_animations(
         .add_clips(
             [
                 GltfAssetLabel::Animation(PlayerAnimation::Idle.index())
-                    .from_asset("models/Man.glb#Animation1"),
+                    .from_asset("models/Man.glb"),
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
-                    .from_asset("models/Man.glb#Animation2"),
-                GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb#Animation0"),
+                    .from_asset("models/Man.glb"),
+                GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -97,15 +103,24 @@ fn setup_animations(
 fn play_continuous_animations(
     mut commands: Commands,
     mut animation_player_query: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+    continuous_animation_query: Query<&ContinuousAnimation>,
+    parent_query: Query<&Parent>,
     animation_lib: Res<AnimationLib>,
 ) {
     for (entity, mut animation_player) in &mut animation_player_query {
+        if continuous_animation_query
+            .get(get_n_parent(entity, &parent_query, 2))
+            .is_err()
+        {
+            continue;
+        }
+
         let mut transitions = AnimationTransitions::new();
 
         transitions
             .play(
                 &mut animation_player,
-                animation_lib.nodes[0],
+                animation_lib.nodes[PlayerAnimation::Idle.index()],
                 Duration::ZERO,
             )
             .repeat();
@@ -118,16 +133,49 @@ fn play_continuous_animations(
 }
 
 fn handle_cyclic_interaction_animations(
+    mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    mut cyclic_animation_query: Query<(Entity, &mut CyclicAnimation), With<Interactable>>,
+    // mut cyclic_animation_query: Query<(Entity, &mut CyclicAnimation), With<Interactable>>,
+    mut animation_player_query: Query<(Entity, &mut AnimationPlayer)>,
+    mut cyclic_animation_query: Query<&mut CyclicAnimation, With<Interactable>>,
+    parent_query: Query<&Parent>,
+    animation_lib: Res<AnimationLib>,
 ) {
     for event in event_reader.read() {
-        for (entity, mut cyclic_animation) in cyclic_animation_query.iter_mut() {
-            if entity.index() == event.0 {
-                let c = cyclic_animation.cycle();
+        for (entity, mut animation_player) in &mut animation_player_query {
+            let parent = get_n_parent(entity, &parent_query, 3);
+            if parent.index() != event.0 {
+                continue;
+            }
+
+            if let Ok(mut cyclic_animation) = cyclic_animation_query.get_mut(parent) {
                 // TODO: animate entity based on what "c" value it is on
+
+                let c = cyclic_animation.cycle();
+                let i = c as usize;
+
                 println!("animating entity {} at cycle: {}", entity.index(), c);
-                break;
+
+                // if c == 1 {
+                //     animation_player.adjust_speeds(-1.0);
+                // }
+                animation_player.stop_all();
+                animation_player.play(animation_lib.nodes[i]).replay();
+
+                commands.entity(entity).insert(animation_lib.graph.clone());
+
+                // let mut transitions = AnimationTransitions::new();
+
+                // transitions.play(
+                //     &mut animation_player,
+                //     animation_lib.nodes[PlayerAnimation::Jogging.index()],
+                //     Duration::ZERO,
+                // );
+
+                // commands
+                //     .entity(entity)
+                //     .insert(animation_lib.graph.clone())
+                //     .insert(transitions);
             }
         }
     }
