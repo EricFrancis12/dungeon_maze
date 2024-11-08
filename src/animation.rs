@@ -149,7 +149,7 @@ fn handle_cyclic_interaction_animations(
     for event in event_reader.read() {
         for (entity, mut animation_player) in &mut animation_player_query {
             let parent = get_n_parent(entity, &parent_query, 3);
-            if parent.index() != event.0 {
+            if parent != event.0 {
                 continue;
             }
 
