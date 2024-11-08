@@ -1,4 +1,5 @@
 use bevy::{animation::animate_targets, prelude::*};
+use bevy_rapier3d::parry::partitioning::NodeIndex;
 use std::time::Duration;
 
 use crate::{
@@ -11,7 +12,7 @@ pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<PlayerAnimation>()
-            .add_systems(Startup, setup_animations)
+            .add_systems(Startup, (setup_animations, setup_animations_2))
             .add_systems(
                 Update,
                 (
@@ -84,7 +85,6 @@ fn setup_animations(
                     .from_asset("models/Man.glb"),
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
                     .from_asset("models/Man.glb"),
-                GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -95,6 +95,39 @@ fn setup_animations(
 
     // Insert a resource with the current scene information
     commands.insert_resource(AnimationLib {
+        nodes,
+        graph: graphs.add(graph),
+    });
+}
+
+#[derive(Resource)]
+struct AnimationLib2 {
+    nodes: Vec<AnimationNodeIndex>,
+    graph: Handle<AnimationGraph>,
+}
+
+fn setup_animations_2(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+) {
+    // Build the animation graph
+    let mut graph = AnimationGraph::new();
+    let nodes = graph
+        .add_clips(
+            [
+                GltfAssetLabel::Animation(1).from_asset("models/Treasure_Chest.glb"), // open
+                GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb"), // close
+            ]
+            .into_iter()
+            .map(|path| asset_server.load(path)),
+            1.0,
+            graph.root,
+        )
+        .collect();
+
+    // Insert a resource with the current scene information
+    commands.insert_resource(AnimationLib2 {
         nodes,
         graph: graphs.add(graph),
     });
@@ -139,7 +172,7 @@ fn handle_cyclic_interaction_animations(
     mut animation_player_query: Query<(Entity, &mut AnimationPlayer)>,
     mut cyclic_animation_query: Query<&mut CyclicAnimation, With<Interactable>>,
     parent_query: Query<&Parent>,
-    animation_lib: Res<AnimationLib>,
+    animation_lib_2: Res<AnimationLib2>,
 ) {
     for event in event_reader.read() {
         for (entity, mut animation_player) in &mut animation_player_query {
@@ -160,9 +193,11 @@ fn handle_cyclic_interaction_animations(
                 //     animation_player.adjust_speeds(-1.0);
                 // }
                 animation_player.stop_all();
-                animation_player.play(animation_lib.nodes[i]).replay();
+                animation_player.play(animation_lib_2.nodes[i]).replay();
 
-                commands.entity(entity).insert(animation_lib.graph.clone());
+                commands
+                    .entity(entity)
+                    .insert(animation_lib_2.graph.clone());
 
                 // let mut transitions = AnimationTransitions::new();
 

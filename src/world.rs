@@ -434,7 +434,7 @@ fn spawn_new_chunk_bundle(
                                         SceneBundle {
                                             scene: asset_server.load(
                                                 GltfAssetLabel::Scene(0)
-                                                    .from_asset("models/Man.glb"),
+                                                    .from_asset("models/Treasure_Chest.glb"),
                                             ),
                                             transform: Transform::from_xyz(
                                                 0.0,
