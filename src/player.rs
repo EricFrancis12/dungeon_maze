@@ -55,6 +55,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             ),
             ..default()
         },
+        ContinuousAnimation,
         ThirdPersonCameraTarget,
         Name::new("Player"),
     );
@@ -69,7 +70,6 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
                 transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
                 ..default()
             },
-            ContinuousAnimation,
             Name::new("Player Model"),
         ));
 

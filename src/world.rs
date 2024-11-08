@@ -28,6 +28,10 @@ const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
 const CHAIR_COLLIDER_HZ: f32 = 0.2;
 
+const TREASURE_CHEST_COLLIDER_HX: f32 = 0.5;
+const TREASURE_CHEST_COLLIDER_HY: f32 = 0.3;
+const TREASURE_CHEST_COLLIDER_HZ: f32 = 0.3;
+
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
@@ -415,18 +419,18 @@ fn spawn_new_chunk_bundle(
                                     SpatialBundle {
                                         transform: Transform::from_xyz(
                                             0.0,
-                                            CHAIR_COLLIDER_HY * 2.0,
+                                            TREASURE_CHEST_COLLIDER_HY * 2.0,
                                             0.0,
                                         ),
                                         ..default()
                                     },
                                     Collider::cuboid(
-                                        CHAIR_COLLIDER_HX,
-                                        CHAIR_COLLIDER_HY,
-                                        CHAIR_COLLIDER_HZ,
+                                        TREASURE_CHEST_COLLIDER_HX,
+                                        TREASURE_CHEST_COLLIDER_HY,
+                                        TREASURE_CHEST_COLLIDER_HZ,
                                     ),
                                     Interactable { range: 2.0 },
-                                    CyclicAnimation::new(0, 1),
+                                    CyclicAnimation::new(2, 3),
                                     Name::new("Treasure Chest"),
                                 ))
                                 .with_children(|ggp| {
@@ -438,7 +442,7 @@ fn spawn_new_chunk_bundle(
                                             ),
                                             transform: Transform::from_xyz(
                                                 0.0,
-                                                -CHAIR_COLLIDER_HY,
+                                                -TREASURE_CHEST_COLLIDER_HY,
                                                 0.0,
                                             ),
                                             ..default()

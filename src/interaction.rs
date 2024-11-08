@@ -51,7 +51,6 @@ fn update_pending_interaction(
 
             if curr_index.is_none() || curr_index.unwrap() != entity.index() {
                 event_writer.send(PendingInteractionChanged);
-                println!("changed to Some: {}", entity.index());
             }
             return;
         }
@@ -60,7 +59,6 @@ fn update_pending_interaction(
     if curr_index.is_some() {
         next_pending_interaction.set(PendingInteraction(None));
         event_writer.send(PendingInteractionChanged);
-        println!("changed to None");
     }
 }
 
@@ -74,7 +72,6 @@ fn execute_pending_interaction(
     }
 
     if let Some(index) = pending_interaction.get().0 {
-        println!("interaction executed for entity: {}", index);
         event_writer.send(PendingInteractionExecuted(index));
     }
 }
