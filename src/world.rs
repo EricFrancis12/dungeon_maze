@@ -1,4 +1,6 @@
 use crate::{
+    animation::CyclicAnimation,
+    interaction::Interactable,
     maze::{calc_maze_dims, maze_from_rng},
     player::Player,
     settings::GameSettings,
@@ -53,6 +55,7 @@ pub enum CellSpecial {
     #[default]
     None,
     Chair,
+    TreasureChest,
 }
 
 impl CellSpecial {
@@ -60,6 +63,7 @@ impl CellSpecial {
         match self {
             Self::None => 0.0,
             Self::Chair => 0.48,
+            Self::TreasureChest => 0.98,
         }
     }
 }
@@ -399,6 +403,44 @@ fn spawn_new_chunk_bundle(
                                             ..default()
                                         },
                                         Name::new("Chair Model"),
+                                    ));
+                                });
+                        }
+                        CellSpecial::TreasureChest => {
+                            grandparent
+                                .spawn((
+                                    SpatialBundle {
+                                        transform: Transform::from_xyz(
+                                            0.0,
+                                            CHAIR_COLLIDER_HY * 2.0,
+                                            0.0,
+                                        ),
+                                        ..default()
+                                    },
+                                    Collider::cuboid(
+                                        CHAIR_COLLIDER_HX,
+                                        CHAIR_COLLIDER_HY,
+                                        CHAIR_COLLIDER_HZ,
+                                    ),
+                                    Interactable { range: 2.0 },
+                                    CyclicAnimation::new(0, 1),
+                                    Name::new("Treasure Chest"),
+                                ))
+                                .with_children(|ggp| {
+                                    ggp.spawn((
+                                        SceneBundle {
+                                            scene: asset_server
+                                                .load(GltfAssetLabel::Scene(0).from_asset(
+                                                    "models/Treasure_Chest.glb#Scene0",
+                                                )),
+                                            transform: Transform::from_xyz(
+                                                0.0,
+                                                -CHAIR_COLLIDER_HY,
+                                                0.0,
+                                            ),
+                                            ..default()
+                                        },
+                                        Name::new("Treasure Chest Model"),
                                     ));
                                 });
                         }

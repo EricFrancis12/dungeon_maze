@@ -2,6 +2,7 @@ mod animation;
 mod camera;
 mod chunk_test;
 mod error;
+mod interaction;
 mod maze;
 mod player;
 mod save;
@@ -11,6 +12,7 @@ mod world;
 
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
+use interaction::InteractionPligin;
 use player::PlayerPlugin;
 use save::GameSavePlugin;
 use settings::SettingsPlugin;
@@ -36,12 +38,14 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin::default(),
             WorldInspectorPlugin::new(),
             ThirdPersonCameraPlugin,
             CameraPlugin,
             PlayerPlugin,
             AnimationPlugin,
             WorldPlugin,
+            InteractionPligin,
             GameSavePlugin,
             SettingsPlugin,
         ))

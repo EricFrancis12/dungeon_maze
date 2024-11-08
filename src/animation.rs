@@ -1,6 +1,8 @@
 use bevy::{animation::animate_targets, prelude::*};
 use std::time::Duration;
 
+use crate::interaction::{Interactable, PendingInteractionExecuted};
+
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
@@ -10,7 +12,8 @@ impl Plugin for AnimationPlugin {
             .add_systems(
                 Update,
                 (
-                    play_animations.before(animate_targets),
+                    play_continuous_animations.before(animate_targets),
+                    handle_cyclic_interaction_animations,
                     change_player_animation,
                 ),
             );
@@ -39,6 +42,28 @@ impl PlayerAnimation {
     }
 }
 
+#[derive(Component)]
+pub struct CyclicAnimation {
+    curr: u32,
+    max: u32,
+}
+
+impl CyclicAnimation {
+    pub fn new(curr: u32, max: u32) -> Self {
+        Self { curr, max }
+    }
+
+    pub fn cycle(&mut self) -> u32 {
+        let c = self.curr;
+        if self.curr == self.max {
+            self.curr = 0;
+        } else {
+            self.curr += 1;
+        }
+        c
+    }
+}
+
 fn setup_animations(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -53,6 +78,7 @@ fn setup_animations(
                     .from_asset("models/Man.glb#Animation1"),
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
                     .from_asset("models/Man.glb#Animation2"),
+                GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb#Animation0"),
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),
@@ -68,7 +94,7 @@ fn setup_animations(
     });
 }
 
-fn play_animations(
+fn play_continuous_animations(
     mut commands: Commands,
     mut animation_player_query: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
     animation_lib: Res<AnimationLib>,
@@ -88,6 +114,22 @@ fn play_animations(
             .entity(entity)
             .insert(animation_lib.graph.clone())
             .insert(transitions);
+    }
+}
+
+fn handle_cyclic_interaction_animations(
+    mut event_reader: EventReader<PendingInteractionExecuted>,
+    mut cyclic_animation_query: Query<(Entity, &mut CyclicAnimation), With<Interactable>>,
+) {
+    for event in event_reader.read() {
+        for (entity, mut cyclic_animation) in cyclic_animation_query.iter_mut() {
+            if entity.index() == event.0 {
+                let c = cyclic_animation.cycle();
+                // TODO: animate entity based on what "c" value it is on
+                println!("animating entity {} at cycle: {}", entity.index(), c);
+                break;
+            }
+        }
     }
 }
 
