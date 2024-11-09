@@ -23,7 +23,7 @@ pub const CHUNK_SIZE: f32 = 16.0;
 pub const GRID_SIZE: usize = (CHUNK_SIZE / CELL_SIZE) as usize;
 
 const WALL_BREAK_PROB: f64 = 0.2;
-const WORLD_STRUCTURE_GEN_PROB: f64 = 0.4;
+const WORLD_STRUCTURE_GEN_PROB: f64 = 0.06;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -88,7 +88,9 @@ pub enum WorldStructure {
     None,
     EmptySpace1,
     EmptySpace2,
-    FilledWithChairs,
+    FilledWithChairs1,
+    Bridge1,
+    Bridge2,
 }
 
 impl WorldStructure {
@@ -97,7 +99,9 @@ impl WorldStructure {
             Self::None => 0,
             Self::EmptySpace1 => 1,
             Self::EmptySpace2 => 2,
-            Self::FilledWithChairs => 1,
+            Self::FilledWithChairs1 => 1,
+            Self::Bridge1 => 1,
+            Self::Bridge2 => 2,
         }
     }
 
@@ -123,7 +127,7 @@ impl WorldStructure {
                 cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
                 world_structure: self.clone(),
             },
-            Self::FilledWithChairs => Chunk {
+            Self::FilledWithChairs1 => Chunk {
                 x,
                 y,
                 z,
@@ -140,13 +144,40 @@ impl WorldStructure {
                 ],
                 world_structure: self.clone(),
             },
+            Self::Bridge1 | Self::Bridge2 => Chunk {
+                x,
+                y,
+                z,
+                cells: vec![
+                    vec![Cell::default(); GRID_SIZE],
+                    vec![
+                        Cell {
+                            floor: true,
+                            ..default()
+                        };
+                        GRID_SIZE
+                    ],
+                    vec![
+                        Cell {
+                            floor: true,
+                            ..default()
+                        };
+                        GRID_SIZE
+                    ],
+                    vec![Cell::default(); GRID_SIZE],
+                ],
+                world_structure: self.clone(),
+            },
         }
     }
 
     fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
-            Self::EmptySpace1 | Self::EmptySpace2 => {
+            Self::EmptySpace1 | Self::FilledWithChairs1 | Self::Bridge1 => {
+                vec![self.gen_origin_chunk(_x, _y, _z)]
+            }
+            Self::EmptySpace2 => {
                 let mut chunks: Vec<Chunk> = Vec::new();
                 let r = self.radius();
                 for (x, y, z) in make_nei_chunks_xyz((_x, _y, _z), r, r, r) {
@@ -160,7 +191,24 @@ impl WorldStructure {
                 }
                 chunks
             }
-            Self::FilledWithChairs => vec![self.gen_origin_chunk(_x, _y, _z)],
+            Self::Bridge2 => {
+                let mut chunks: Vec<Chunk> = Vec::new();
+                let r = self.radius();
+                for (x, y, z) in make_nei_chunks_xyz((_x, _y, _z), r, r, r) {
+                    if y == _y && x == _x {
+                        chunks.push(self.gen_origin_chunk(_x, _y, _z));
+                    } else {
+                        chunks.push(Chunk {
+                            x,
+                            y,
+                            z,
+                            cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
+                            world_structure: self.clone(),
+                        });
+                    }
+                }
+                chunks
+            }
         }
     }
 }
