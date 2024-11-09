@@ -43,16 +43,19 @@ fn change_game_settings(
     game_settings: Res<State<GameSettings>>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
-    let dist = if keys.just_released(KeyCode::Numpad0) {
-        0
-    } else if keys.just_released(KeyCode::Numpad1) {
-        1
-    } else if keys.just_released(KeyCode::Numpad2) {
-        2
-    } else if keys.just_released(KeyCode::Numpad3) {
-        3
-    } else {
+    let pressed = keys.get_pressed().collect::<Vec<&KeyCode>>();
+    if pressed.is_empty() {
         return;
+    }
+
+    let dist = match pressed[0] {
+        KeyCode::Numpad0 => 0,
+        KeyCode::Numpad1 => 1,
+        KeyCode::Numpad2 => 2,
+        KeyCode::Numpad3 => 3,
+        KeyCode::Numpad4 => 4,
+        KeyCode::Numpad5 => 5,
+        _ => return,
     };
 
     let mut new_game_settings = game_settings.clone();

@@ -10,6 +10,8 @@ mod settings;
 mod utils;
 mod world;
 
+use std::env;
+
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
 use interaction::InteractionPligin;
@@ -21,7 +23,6 @@ use world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE};
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
-use bevy_third_person_camera::*;
 
 pub const SEED: u32 = 1234;
 
@@ -34,20 +35,32 @@ fn main() {
         CELL_SIZE,
     );
 
-    App::new()
-        .add_plugins((
-            DefaultPlugins,
-            RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin::default(),
+    let args: Vec<String> = env::args().collect();
+
+    let mut app = App::new();
+
+    app.add_plugins((
+        DefaultPlugins,
+        RapierPhysicsPlugin::<NoUserData>::default(),
+        CameraPlugin,
+        PlayerPlugin,
+        AnimationPlugin,
+        WorldPlugin,
+        InteractionPligin,
+        GameSavePlugin,
+        SettingsPlugin,
+    ));
+
+    if args.contains(&String::from("dev")) {
+        app.add_plugins((
             WorldInspectorPlugin::new(),
-            ThirdPersonCameraPlugin,
-            CameraPlugin,
-            PlayerPlugin,
-            AnimationPlugin,
-            WorldPlugin,
-            InteractionPligin,
-            GameSavePlugin,
-            SettingsPlugin,
-        ))
-        .run();
+            RapierDebugRenderPlugin {
+                enabled: true,
+                mode: DebugRenderMode::all(),
+                ..default()
+            },
+        ));
+    }
+
+    app.run();
 }

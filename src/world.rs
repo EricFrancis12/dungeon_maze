@@ -419,7 +419,7 @@ fn spawn_new_chunk_bundle(
                                     SpatialBundle {
                                         transform: Transform::from_xyz(
                                             0.0,
-                                            TREASURE_CHEST_COLLIDER_HY * 2.0,
+                                            TREASURE_CHEST_COLLIDER_HY,
                                             0.0,
                                         ),
                                         ..default()
