@@ -1,7 +1,6 @@
 #[cfg(test)]
 use crate::{
-    maze::calc_maze_dims,
-    world::{chunk_from_xyz_seed, make_nei_chunks_xyz, CELL_SIZE, CHUNK_SIZE},
+    world::{chunk_from_xyz_seed, make_nei_chunks_xyz, GRID_SIZE},
     SEED,
 };
 
@@ -14,14 +13,12 @@ use std::fs;
 fn write_initial_chunks_to_html_file() {
     let output_path = "initial_chunks_map.html";
 
-    let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-
     let mut mazes_y_minus_1 = vec![];
     let mut mazes_y = vec![];
     let mut mazes_y_plus_1 = vec![];
 
     for (x, y, z) in make_nei_chunks_xyz((0, 0, 0), 1, 1, 1) {
-        let maze = chunk_from_xyz_seed(SEED, height, width, x, y, z);
+        let maze = chunk_from_xyz_seed(SEED, x, y, z);
         match y {
             -1 => mazes_y_minus_1.push(maze),
             0 => mazes_y.push(maze),
@@ -203,8 +200,8 @@ fn write_initial_chunks_to_html_file() {
 
             </html>
         "#,
-        height,
-        width,
+        GRID_SIZE,
+        GRID_SIZE,
         Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         button_elements.join("\n"),
         level_elements.join("\n"),

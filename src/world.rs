@@ -1,7 +1,7 @@
 use crate::{
     animation::CyclicAnimation,
     interaction::Interactable,
-    maze::{calc_maze_dims, maze_from_rng},
+    maze::maze_from_rng,
     player::Player,
     settings::GameSettings,
     utils::{
@@ -20,6 +20,7 @@ use strum_macros::EnumIter;
 
 pub const CELL_SIZE: f32 = 4.0;
 pub const CHUNK_SIZE: f32 = 16.0;
+pub const GRID_SIZE: usize = (CHUNK_SIZE / CELL_SIZE) as usize;
 
 const WALL_BREAK_PROB: f64 = 0.2;
 const WORLD_STRUCTURE_GEN_PROB: f64 = 0.4;
@@ -113,13 +114,13 @@ impl WorldStructure {
         all[i].clone()
     }
 
-    fn gen_origin_chunk(&self, height: usize, width: usize, x: i64, y: i64, z: i64) -> Chunk {
+    fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk {
         match self {
             Self::None | Self::EmptySpace1 | Self::EmptySpace2 => Chunk {
                 x,
                 y,
                 z,
-                cells: vec![vec![Cell::default(); width]; height],
+                cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
                 world_structure: self.clone(),
             },
             Self::FilledWithChairs => Chunk {
@@ -133,16 +134,16 @@ impl WorldStructure {
                             special: CellSpecial::Chair,
                             ..default()
                         };
-                        width
+                        GRID_SIZE
                     ];
-                    height
+                    GRID_SIZE
                 ],
                 world_structure: self.clone(),
             },
         }
     }
 
-    fn gen_chunks(&self, height: usize, width: usize, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
+    fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
             Self::EmptySpace1 | Self::EmptySpace2 => {
@@ -153,13 +154,13 @@ impl WorldStructure {
                         x,
                         y,
                         z,
-                        cells: vec![vec![Cell::default(); width]; height],
+                        cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
                         world_structure: self.clone(),
                     });
                 }
                 chunks
             }
-            Self::FilledWithChairs => vec![self.gen_origin_chunk(height, width, _x, _y, _z)],
+            Self::FilledWithChairs => vec![self.gen_origin_chunk(_x, _y, _z)],
         }
     }
 }
@@ -188,40 +189,6 @@ struct ChunkCellMarker {
     chunk_z: i64,
     x: usize,
     z: usize,
-}
-
-impl ChunkCellMarker {
-    fn _from_global_transform(gt: &GlobalTransform) -> Self {
-        let tl = gt.translation();
-
-        let grid_size_minus_one = (CHUNK_SIZE / CELL_SIZE) - 1.0;
-        let half_chunk_size = CHUNK_SIZE / 2.0;
-
-        // Calculate the offset for centering at (0, 0, 0)
-        let offset_x = tl.x + half_chunk_size;
-        let offset_z = tl.z + half_chunk_size;
-
-        // Calculate chunk coordinates
-        let chunk_x = (offset_x / CHUNK_SIZE).floor() as i64;
-        let chunk_y = (tl.y / CELL_SIZE).floor() as i64;
-        let chunk_z = (offset_z / CHUNK_SIZE).floor() as i64;
-
-        // Calculate local position within the chunk
-        let x = (grid_size_minus_one
-            - ((offset_x - (chunk_x as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
-            as usize;
-        let z = (grid_size_minus_one
-            - ((offset_z - (chunk_z as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
-            as usize;
-
-        Self {
-            chunk_x,
-            chunk_y,
-            chunk_z,
-            x,
-            z,
-        }
-    }
 }
 
 fn spawn_initial_chunks(
@@ -356,9 +323,7 @@ fn spawn_new_chunk_bundle(
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     let chunk_bundle = (
-        PbrBundle {
-            mesh: meshes.add(Plane3d::default().mesh().size(CHUNK_SIZE, CHUNK_SIZE)),
-            material: materials.add(Color::linear_rgba(0.0, 0.0, 0.0, 0.0)),
+        SpatialBundle {
             transform: Transform::from_xyz(
                 chunk_x as f32 * CHUNK_SIZE,
                 chunk_y as f32 * CELL_SIZE,
@@ -371,9 +336,7 @@ fn spawn_new_chunk_bundle(
     );
 
     commands.spawn(chunk_bundle).with_children(|parent| {
-        // One maze is created per chunk
-        let (height, width) = calc_maze_dims(CHUNK_SIZE, CELL_SIZE);
-        let chunk = &chunk_from_xyz_seed(SEED, height, width, chunk_x, chunk_y, chunk_z);
+        let chunk = chunk_from_xyz_seed(SEED, chunk_x, chunk_y, chunk_z);
 
         for (x, row) in chunk.cells.iter().enumerate() {
             for (z, cell) in row.iter().enumerate() {
@@ -603,9 +566,8 @@ fn spawn_new_chunk_bundle(
 }
 
 fn calc_floor_pos(index: usize) -> f32 {
-    let num_cells_per_chunk = (CHUNK_SIZE / CELL_SIZE) as usize;
     let mut positions = vec![CELL_SIZE / 2.0, -CELL_SIZE / 2.0];
-    while positions.len() < num_cells_per_chunk {
+    while positions.len() < GRID_SIZE {
         positions.insert(0, positions[0] + CELL_SIZE);
         positions.push(positions.last().unwrap() - CELL_SIZE);
     }
@@ -635,36 +597,29 @@ pub fn make_nei_chunks_xyz(
         .collect()
 }
 
-pub fn chunk_from_xyz_seed(
-    seed: u32,
-    height: usize,
-    width: usize,
-    x: i64,
-    y: i64,
-    z: i64,
-) -> Chunk {
+pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
     let mut rng = rng_from_xyz_seed(seed, x, y, z);
 
     if chunk_has_world_structure(seed, x, y, z) {
-        return WorldStructure::choose(&mut rng).gen_origin_chunk(height, width, x, y, z);
+        return WorldStructure::choose(&mut rng).gen_origin_chunk(x, y, z);
     }
 
-    let mut cells = maze_from_rng(&mut rng, height, width);
+    let mut cells = maze_from_rng(&mut rng, GRID_SIZE, GRID_SIZE);
 
-    let h = height / 2;
-    let w = width / 2;
+    let h = GRID_SIZE / 2;
+    let w = GRID_SIZE / 2;
 
     // left and right walls
     cells[h][0].wall_left = false;
-    cells[h][width - 1].wall_right = false;
+    cells[h][GRID_SIZE - 1].wall_right = false;
 
     // top and bottom walls
     cells[0][w].wall_top = false;
-    cells[height - 1][w].wall_bottom = false;
+    cells[GRID_SIZE - 1][w].wall_bottom = false;
 
     // ceiling and floor (y axis)
-    for h in 0..height {
-        for w in 0..width {
+    for h in 0..GRID_SIZE {
+        for w in 0..GRID_SIZE {
             let mut y_minus_1_rng = rng_from_str(seed_str_from_neis(
                 seed,
                 (x, y - 1, z, w, h),
@@ -686,8 +641,8 @@ pub fn chunk_from_xyz_seed(
     }
 
     let mut floored_cells: Vec<(usize, usize)> = Vec::new();
-    for h in 0..height {
-        for w in 0..width {
+    for h in 0..GRID_SIZE {
+        for w in 0..GRID_SIZE {
             if cells[h][w].floor {
                 floored_cells.push((w, h));
             }
@@ -740,10 +695,8 @@ pub fn chunk_from_xyz_seed(
                     }
 
                     if chunk_has_world_structure(seed, _x, _y, _z) {
-                        let ws_chunk = chunk_from_xyz_seed(seed, height, width, _x, _y, _z);
-                        let ws_chunks = ws_chunk
-                            .world_structure
-                            .gen_chunks(height, width, _x, _y, _z);
+                        let ws_chunk = chunk_from_xyz_seed(seed, _x, _y, _z);
+                        let ws_chunks = ws_chunk.world_structure.gen_chunks(_x, _y, _z);
 
                         if let Some(ch) =
                             ws_chunks.iter().find(|c| c.x == x && c.y == y && c.z == z)

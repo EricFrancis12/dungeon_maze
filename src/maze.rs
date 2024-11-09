@@ -8,15 +8,6 @@ use std::collections::HashSet;
 
 pub type Maze = Vec<Vec<Cell>>;
 
-pub fn calc_maze_size(chunk_size: f32, cell_size: f32) -> usize {
-    (chunk_size / cell_size) as usize
-}
-
-pub fn calc_maze_dims(chunk_size: f32, cell_size: f32) -> (usize, usize) {
-    let maze_size = calc_maze_size(chunk_size, cell_size);
-    (maze_size, maze_size) // (height, width)
-}
-
 fn _maze_from_seed(seed: u32, height: usize, width: usize) -> Maze {
     let mut rng = seed_to_rng(seed);
     maze_from_rng(&mut rng, height, width)
