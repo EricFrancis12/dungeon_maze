@@ -1,7 +1,7 @@
 #[cfg(test)]
 use crate::{
     maze::calc_maze_dims,
-    world::{chunk_from_xyz_seed, make_neighboring_chunks_xyz, CELL_SIZE, CHUNK_SIZE},
+    world::{chunk_from_xyz_seed, make_nei_chunks_xyz, CELL_SIZE, CHUNK_SIZE},
     SEED,
 };
 
@@ -20,7 +20,7 @@ fn write_initial_chunks_to_html_file() {
     let mut mazes_y = vec![];
     let mut mazes_y_plus_1 = vec![];
 
-    for (x, y, z) in make_neighboring_chunks_xyz((0, 0, 0), 1, 1, 1) {
+    for (x, y, z) in make_nei_chunks_xyz((0, 0, 0), 1, 1, 1) {
         let maze = chunk_from_xyz_seed(SEED, height, width, x, y, z);
         match y {
             -1 => mazes_y_minus_1.push(maze),

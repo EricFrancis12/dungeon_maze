@@ -22,7 +22,7 @@ pub const CELL_SIZE: f32 = 4.0;
 pub const CHUNK_SIZE: f32 = 16.0;
 
 const WALL_BREAK_PROB: f64 = 0.2;
-const WORLD_STRUCTURE_GEN_PROB: f64 = 0.1;
+const WORLD_STRUCTURE_GEN_PROB: f64 = 0.4;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -74,10 +74,10 @@ impl CellSpecial {
 
 #[derive(Clone)]
 pub struct Chunk {
-    pub cells: Vec<Vec<Cell>>,
     pub x: i64,
     pub y: i64,
     pub z: i64,
+    pub cells: Vec<Vec<Cell>>,
     pub world_structure: WorldStructure,
 }
 
@@ -87,6 +87,7 @@ pub enum WorldStructure {
     None,
     EmptySpace1,
     EmptySpace2,
+    FilledWithChairs,
 }
 
 impl WorldStructure {
@@ -95,6 +96,7 @@ impl WorldStructure {
             Self::None => 0,
             Self::EmptySpace1 => 1,
             Self::EmptySpace2 => 2,
+            Self::FilledWithChairs => 1,
         }
     }
 
@@ -114,28 +116,50 @@ impl WorldStructure {
     fn gen_origin_chunk(&self, height: usize, width: usize, x: i64, y: i64, z: i64) -> Chunk {
         match self {
             Self::None | Self::EmptySpace1 | Self::EmptySpace2 => Chunk {
-                cells: vec![vec![Cell::default(); width]; height],
                 x,
                 y,
                 z,
+                cells: vec![vec![Cell::default(); width]; height],
+                world_structure: self.clone(),
+            },
+            Self::FilledWithChairs => Chunk {
+                x,
+                y,
+                z,
+                cells: vec![
+                    vec![
+                        Cell {
+                            floor: true,
+                            special: CellSpecial::Chair,
+                            ..default()
+                        };
+                        width
+                    ];
+                    height
+                ],
                 world_structure: self.clone(),
             },
         }
     }
 
-    fn gen_chunks(&self, height: usize, width: usize, x: i64, y: i64, z: i64) -> Vec<Chunk> {
+    fn gen_chunks(&self, height: usize, width: usize, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
-            Self::EmptySpace1 | Self::EmptySpace2 => vec![
-                Chunk {
-                    cells: vec![vec![Cell::default(); width]; height],
-                    x,
-                    y,
-                    z,
-                    world_structure: self.clone(),
-                };
-                ((self.radius() * 2) - 1) as usize
-            ],
+            Self::EmptySpace1 | Self::EmptySpace2 => {
+                let mut chunks: Vec<Chunk> = Vec::new();
+                let r = self.radius();
+                for (x, y, z) in make_nei_chunks_xyz((_x, _y, _z), r, r, r) {
+                    chunks.push(Chunk {
+                        x,
+                        y,
+                        z,
+                        cells: vec![vec![Cell::default(); width]; height],
+                        world_structure: self.clone(),
+                    });
+                }
+                chunks
+            }
+            Self::FilledWithChairs => vec![self.gen_origin_chunk(height, width, _x, _y, _z)],
         }
     }
 }
@@ -209,7 +233,7 @@ fn spawn_initial_chunks(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let render_dist = game_settings.chunk_render_dist;
-    let chunks = make_neighboring_chunks_xyz(
+    let chunks = make_nei_chunks_xyz(
         (active_chunk.0, active_chunk.1, active_chunk.2),
         render_dist.0,
         render_dist.1,
@@ -297,8 +321,7 @@ fn handle_active_chunk_change(
         next_active_chunk.set(event.value);
 
         let rend_dist = game_settings.chunk_render_dist;
-        let new_chunks =
-            make_neighboring_chunks_xyz(chunk_xyz, rend_dist.0, rend_dist.1, rend_dist.2);
+        let new_chunks = make_nei_chunks_xyz(chunk_xyz, rend_dist.0, rend_dist.1, rend_dist.2);
 
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
@@ -589,7 +612,7 @@ fn calc_floor_pos(index: usize) -> f32 {
     positions.get(index).unwrap().to_owned()
 }
 
-pub fn make_neighboring_chunks_xyz(
+pub fn make_nei_chunks_xyz(
     chunk: (i64, i64, i64),
     x_rend_dist: u32,
     y_rend_dist: u32,
@@ -734,10 +757,10 @@ pub fn chunk_from_xyz_seed(
     }
 
     Chunk {
-        cells,
         x,
         y,
         z,
+        cells,
         world_structure: WorldStructure::None,
     }
 }
