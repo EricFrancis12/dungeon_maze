@@ -9,7 +9,7 @@ const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
 const PLAYER_COLLIDER_HZ: f32 = 0.4;
 const DEFAULT_PLAYER_SPEED: f32 = 200.0;
-const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 10.0;
+const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 2.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
 
 pub struct PlayerPlugin;

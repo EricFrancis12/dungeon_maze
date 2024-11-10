@@ -10,8 +10,6 @@ mod settings;
 mod utils;
 mod world;
 
-use std::env;
-
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
 use interaction::InteractionPligin;
@@ -23,6 +21,7 @@ use world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE};
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
+use std::env;
 
 pub const SEED: u32 = 1234;
 
@@ -51,15 +50,15 @@ fn main() {
         CameraPlugin,
     ));
 
-    if args.contains(&String::from("dev")) {
-        app.add_plugins((
-            RapierDebugRenderPlugin {
-                enabled: true,
-                mode: DebugRenderMode::all(),
-                ..default()
-            },
-            WorldInspectorPlugin::new(),
-        ));
+    if args.contains(&String::from("rapier")) {
+        app.add_plugins(RapierDebugRenderPlugin {
+            enabled: true,
+            mode: DebugRenderMode::all(),
+            ..default()
+        });
+    }
+    if args.contains(&String::from("world")) {
+        app.add_plugins(WorldInspectorPlugin::new());
     }
 
     app.run();
