@@ -8,8 +8,8 @@ use std::f32::consts::PI;
 const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
 const PLAYER_COLLIDER_HZ: f32 = 0.4;
-const DEFAULT_PLAYER_SPEED: f32 = 450.0;
-const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 70.0;
+const DEFAULT_PLAYER_SPEED: f32 = 200.0;
+const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 10.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
 
 pub struct PlayerPlugin;
@@ -41,12 +41,16 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         Speed(DEFAULT_PLAYER_SPEED),
         RigidBody::Dynamic,
         Velocity::default(),
-        ExternalImpulse::default(),
         GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
         Collider::cuboid(PLAYER_COLLIDER_HX, PLAYER_COLLIDER_HY, PLAYER_COLLIDER_HZ),
-        LockedAxes::ROTATION_LOCKED_X
-            | LockedAxes::ROTATION_LOCKED_Y
-            | LockedAxes::ROTATION_LOCKED_Z,
+        KinematicCharacterController {
+            autostep: Some(CharacterAutostep {
+                max_height: CharacterLength::Absolute(1.0),
+                min_width: CharacterLength::Absolute(0.1),
+                include_dynamic_bodies: false,
+            }),
+            ..default()
+        },
         SpatialBundle {
             transform: Transform::from_xyz(
                 PLAYER_SPAWN_XYZ.0,
@@ -86,10 +90,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn player_walking_movement(
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
-    mut player_query: Query<
-        (&mut Transform, &mut Velocity, &mut ExternalImpulse, &Speed),
-        With<Player>,
-    >,
+    mut player_query: Query<(&mut Transform, &mut Velocity, &Speed), With<Player>>,
     player_state: Res<State<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -98,9 +99,7 @@ fn player_walking_movement(
         return;
     }
 
-    for (mut player_transform, mut player_velocity, mut player_external_impulse, player_speed) in
-        player_query.iter_mut()
-    {
+    for (mut player_transform, mut player_velocity, player_speed) in player_query.iter_mut() {
         let camera_transform = match camera_query.get_single() {
             Ok(ct) => ct,
             Err(err) => Err(format!("Error retrieving camera: {}", err)).unwrap(),
@@ -146,7 +145,12 @@ fn player_walking_movement(
             player_transform.look_to(inv, Vec3::Y);
         }
 
-        player_velocity.linvel = Vec3::ZERO; // Reset player velocity
-        player_external_impulse.impulse = movement;
+        if player_velocity.linvel.y > 0.0 {
+            player_velocity.linvel.y = 0.0;
+        }
+
+        player_velocity.angvel = Vec3::ZERO;
+        player_velocity.linvel.x = movement.x;
+        player_velocity.linvel.z = movement.z;
     }
 }

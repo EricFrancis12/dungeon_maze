@@ -42,23 +42,23 @@ fn main() {
     app.add_plugins((
         DefaultPlugins,
         RapierPhysicsPlugin::<NoUserData>::default(),
-        CameraPlugin,
         PlayerPlugin,
         AnimationPlugin,
         WorldPlugin,
         InteractionPligin,
         GameSavePlugin,
         SettingsPlugin,
+        CameraPlugin,
     ));
 
     if args.contains(&String::from("dev")) {
         app.add_plugins((
-            WorldInspectorPlugin::new(),
             RapierDebugRenderPlugin {
                 enabled: true,
                 mode: DebugRenderMode::all(),
                 ..default()
             },
+            WorldInspectorPlugin::new(),
         ));
     }
 

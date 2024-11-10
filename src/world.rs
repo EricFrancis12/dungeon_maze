@@ -23,7 +23,7 @@ pub const CHUNK_SIZE: f32 = 16.0;
 pub const GRID_SIZE: usize = (CHUNK_SIZE / CELL_SIZE) as usize;
 
 const WALL_BREAK_PROB: f64 = 0.2;
-const WORLD_STRUCTURE_GEN_PROB: f64 = 0.06;
+const WORLD_STRUCTURE_GEN_PROB: f64 = 0.08;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -61,6 +61,7 @@ pub enum CellSpecial {
     None,
     Chair,
     TreasureChest,
+    Staircase,
 }
 
 impl CellSpecial {
@@ -68,12 +69,13 @@ impl CellSpecial {
         match self {
             Self::None => 0.0,
             Self::Chair => 0.48,
-            Self::TreasureChest => 0.98,
+            Self::TreasureChest => 0.48,
+            Self::Staircase => 0.18,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
     pub x: i64,
     pub y: i64,
@@ -82,15 +84,13 @@ pub struct Chunk {
     pub world_structure: WorldStructure,
 }
 
-#[derive(Clone, Default, EnumIter)]
+#[derive(Clone, Debug, Default, EnumIter)]
 pub enum WorldStructure {
     #[default]
     None,
     EmptySpace1,
-    EmptySpace2,
     FilledWithChairs1,
-    Bridge1,
-    Bridge2,
+    StaircaseTower2,
 }
 
 impl WorldStructure {
@@ -98,10 +98,8 @@ impl WorldStructure {
         match self {
             Self::None => 0,
             Self::EmptySpace1 => 1,
-            Self::EmptySpace2 => 2,
             Self::FilledWithChairs1 => 1,
-            Self::Bridge1 => 1,
-            Self::Bridge2 => 2,
+            Self::StaircaseTower2 => 2,
         }
     }
 
@@ -120,7 +118,7 @@ impl WorldStructure {
 
     fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk {
         match self {
-            Self::None | Self::EmptySpace1 | Self::EmptySpace2 => Chunk {
+            Self::None | Self::EmptySpace1 => Chunk {
                 x,
                 y,
                 z,
@@ -144,25 +142,25 @@ impl WorldStructure {
                 ],
                 world_structure: self.clone(),
             },
-            Self::Bridge1 | Self::Bridge2 => Chunk {
+            Self::StaircaseTower2 => Chunk {
                 x,
                 y,
                 z,
                 cells: vec![
                     vec![Cell::default(); GRID_SIZE],
+                    vec![Cell::default(); GRID_SIZE],
                     vec![
+                        Cell::default(),
+                        Cell::default(),
                         Cell {
-                            floor: true,
+                            wall_top: true,
+                            wall_bottom: true,
+                            wall_left: true,
+                            wall_right: true,
+                            special: CellSpecial::Staircase,
                             ..default()
-                        };
-                        GRID_SIZE
-                    ],
-                    vec![
-                        Cell {
-                            floor: true,
-                            ..default()
-                        };
-                        GRID_SIZE
+                        },
+                        Cell::default(),
                     ],
                     vec![Cell::default(); GRID_SIZE],
                 ],
@@ -174,40 +172,63 @@ impl WorldStructure {
     fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
-            Self::EmptySpace1 | Self::FilledWithChairs1 | Self::Bridge1 => {
+            Self::EmptySpace1 | Self::FilledWithChairs1 => {
                 vec![self.gen_origin_chunk(_x, _y, _z)]
             }
-            Self::EmptySpace2 => {
-                let mut chunks: Vec<Chunk> = Vec::new();
-                let r = self.radius();
-                for (x, y, z) in make_nei_chunks_xyz((_x, _y, _z), r, r, r) {
-                    chunks.push(Chunk {
-                        x,
-                        y,
-                        z,
-                        cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
-                        world_structure: self.clone(),
-                    });
+            Self::StaircaseTower2 => {
+                let mut chunk_y_minus_1 = Chunk {
+                    x: _x,
+                    y: _y - 1,
+                    z: _z,
+                    cells: vec![
+                        vec![
+                            Cell {
+                                floor: true,
+                                ..default()
+                            };
+                            GRID_SIZE
+                        ];
+                        GRID_SIZE
+                    ],
+                    world_structure: WorldStructure::None,
+                };
+                // tower cell
+                chunk_y_minus_1.cells[2][2] = Cell {
+                    wall_top: true,
+                    wall_left: true,
+                    wall_right: true,
+                    floor: true,
+                    special: CellSpecial::Staircase,
+                    ..Default::default()
+                };
+
+                let mut chunk_y_plus_1 = Chunk {
+                    x: _x,
+                    y: _y + 1,
+                    z: _z,
+                    cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
+                    world_structure: WorldStructure::None,
+                };
+                // tower cell
+                chunk_y_plus_1.cells[2][2] = Cell {
+                    wall_top: true,
+                    wall_left: true,
+                    wall_right: true,
+                    ..default()
+                };
+                // loft cells
+                for i in 0..=3 {
+                    chunk_y_plus_1.cells[3][i] = Cell {
+                        floor: true,
+                        ..default()
+                    };
                 }
-                chunks
-            }
-            Self::Bridge2 => {
-                let mut chunks: Vec<Chunk> = Vec::new();
-                let r = self.radius();
-                for (x, y, z) in make_nei_chunks_xyz((_x, _y, _z), r, r, r) {
-                    if y == _y && x == _x {
-                        chunks.push(self.gen_origin_chunk(_x, _y, _z));
-                    } else {
-                        chunks.push(Chunk {
-                            x,
-                            y,
-                            z,
-                            cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
-                            world_structure: self.clone(),
-                        });
-                    }
-                }
-                chunks
+
+                vec![
+                    chunk_y_minus_1,
+                    self.gen_origin_chunk(_x, _y, _z),
+                    chunk_y_plus_1,
+                ]
             }
         }
     }
@@ -485,6 +506,93 @@ fn spawn_new_chunk_bundle(
                                     ));
                                 });
                         }
+                        CellSpecial::Staircase => {
+                            let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
+
+                            // lower steps
+                            for i in 0..7 {
+                                shapes.push((
+                                    Vec3 {
+                                        x: -0.9 + (i as f32 * 0.3),
+                                        y: 0.1 + (i as f32 * 0.3),
+                                        z: -1.18,
+                                    },
+                                    Quat::default(),
+                                    Collider::cuboid(0.2, 0.1, 0.82),
+                                ));
+                            }
+
+                            // upper steps
+                            for j in 0..5 {
+                                shapes.push((
+                                    Vec3 {
+                                        x: 0.3 - (j as f32 * 0.3),
+                                        y: 2.5 + (j as f32 * 0.3),
+                                        z: 1.18,
+                                    },
+                                    Quat::default(),
+                                    Collider::cuboid(0.2, 0.1, 0.82),
+                                ));
+                            }
+
+                            // lower flat section
+                            shapes.push((
+                                Vec3 {
+                                    x: 1.5,
+                                    y: 2.2,
+                                    z: 0.0,
+                                },
+                                Quat::default(),
+                                Collider::cuboid(0.5, 0.01, 2.0),
+                            ));
+
+                            // upper flat section
+                            shapes.push((
+                                Vec3 {
+                                    x: -1.5,
+                                    y: 4.0,
+                                    z: 0.0,
+                                },
+                                Quat::default(),
+                                Collider::cuboid(0.5, 0.01, 2.0),
+                            ));
+
+                            grandparent
+                                .spawn((
+                                    SpatialBundle {
+                                        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                                        ..default()
+                                    },
+                                    RigidBody::Fixed,
+                                    Collider::compound(shapes),
+                                    Name::new("Staircase"),
+                                ))
+                                .with_children(|ggp| {
+                                    ggp.spawn((
+                                        SceneBundle {
+                                            scene: asset_server.load(
+                                                GltfAssetLabel::Scene(0)
+                                                    .from_asset("models/Staircase.glb"),
+                                            ),
+                                            transform: Transform {
+                                                translation: Vec3 {
+                                                    x: 0.0,
+                                                    y: 2.0,
+                                                    z: -2.0,
+                                                },
+                                                scale: Vec3 {
+                                                    x: 2.0,
+                                                    y: 2.0,
+                                                    z: 2.0,
+                                                },
+                                                ..default()
+                                            },
+                                            ..default()
+                                        },
+                                        Name::new("Staircase Model"),
+                                    ));
+                                });
+                        }
                     }
 
                     let mesh = meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE));
@@ -730,15 +838,9 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
         let z_max = z + search_radius;
 
         for _x in x_min..=x_max {
-            if _x == x {
-                continue;
-            }
             for _y in y_min..=y_max {
-                if _y == y {
-                    continue;
-                }
                 for _z in z_min..=z_max {
-                    if _z == z {
+                    if _x == x && _y == y && _z == z {
                         continue;
                     }
 
