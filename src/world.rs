@@ -21,6 +21,7 @@ use strum_macros::EnumIter;
 pub const CELL_SIZE: f32 = 4.0;
 pub const CHUNK_SIZE: f32 = 16.0;
 pub const GRID_SIZE: usize = (CHUNK_SIZE / CELL_SIZE) as usize;
+pub const WALL_THICKNESS: f32 = 0.1;
 
 const WALL_BREAK_PROB: f64 = 0.2;
 const WORLD_STRUCTURE_GEN_PROB: f64 = 0.08;
@@ -595,7 +596,14 @@ fn spawn_new_chunk_bundle(
                         }
                     }
 
-                    let mesh = meshes.add(Plane3d::default().mesh().size(CELL_SIZE, CELL_SIZE));
+                    let mesh = meshes.add(
+                        Cuboid::from_size(Vec3 {
+                            x: CELL_SIZE,
+                            y: WALL_THICKNESS,
+                            z: CELL_SIZE,
+                        })
+                        .mesh(),
+                    );
 
                     // Floor
                     if cell.floor {
@@ -603,9 +611,20 @@ fn spawn_new_chunk_bundle(
                             PbrBundle {
                                 mesh: mesh.clone(),
                                 material: materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
+                                transform: Transform {
+                                    translation: Vec3 {
+                                        y: WALL_THICKNESS / 2.0,
+                                        ..default()
+                                    },
+                                    ..default()
+                                },
                                 ..default()
                             },
-                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Floor"),
                         ));
                     }
@@ -616,10 +635,21 @@ fn spawn_new_chunk_bundle(
                             PbrBundle {
                                 mesh: mesh.clone(),
                                 material: materials.add(Color::linear_rgba(0.0, 0.2, 0.4, 1.0)),
-                                transform: Transform::default()
-                                    .with_rotation(Quat::from_rotation_x(PI)),
+                                transform: Transform {
+                                    translation: Vec3 {
+                                        y: CELL_SIZE - WALL_THICKNESS / 2.0,
+                                        ..default()
+                                    },
+                                    ..default()
+                                }
+                                .with_rotation(Quat::from_rotation_x(PI)),
                                 ..default()
                             },
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Ceiling"),
                         ));
                     }
@@ -649,13 +679,18 @@ fn spawn_new_chunk_bundle(
                                 mesh: mesh.clone(),
                                 material: material.clone(),
                                 transform: Transform::from_xyz(
-                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
                                     CELL_SIZE / 2.0,
                                     0.0,
                                 )
                                 .with_rotation(Quat::from_rotation_z(PI / 2.0)),
                                 ..default()
                             },
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Top Wall"),
                         ));
                     }
@@ -667,14 +702,18 @@ fn spawn_new_chunk_bundle(
                                 mesh: mesh.clone(),
                                 material: material.clone(),
                                 transform: Transform::from_xyz(
-                                    -CELL_SIZE / 2.0,
+                                    -CELL_SIZE / 2.0 + WALL_THICKNESS / 2.0,
                                     CELL_SIZE / 2.0,
                                     0.0,
                                 )
                                 .with_rotation(Quat::from_rotation_z(PI * 3.0 / 2.0)),
                                 ..default()
                             },
-                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Bottom Wall"),
                         ));
                     }
@@ -688,11 +727,16 @@ fn spawn_new_chunk_bundle(
                                 transform: Transform::from_xyz(
                                     0.0,
                                     CELL_SIZE / 2.0,
-                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
                                 )
                                 .with_rotation(Quat::from_rotation_x(PI * 3.0 / 2.0)),
                                 ..default()
                             },
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Left Wall"),
                         ));
                     }
@@ -706,12 +750,16 @@ fn spawn_new_chunk_bundle(
                                 transform: Transform::from_xyz(
                                     0.0,
                                     CELL_SIZE / 2.0,
-                                    -CELL_SIZE / 2.0,
+                                    -CELL_SIZE / 2.0 + WALL_THICKNESS / 2.0,
                                 )
                                 .with_rotation(Quat::from_rotation_x(PI / 2.0)),
                                 ..default()
                             },
-                            Collider::cuboid(CELL_SIZE / 2.0, 0.1, CELL_SIZE / 2.0),
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
                             Name::new("Right Wall"),
                         ));
                     }
