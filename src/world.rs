@@ -11,7 +11,7 @@ use crate::{
     SEED,
 };
 
-use bevy::prelude::*;
+use bevy::{gltf::GltfMesh, prelude::*, scene::ron::de};
 use bevy_rapier3d::prelude::*;
 use rand::{rngs::StdRng, Rng};
 use std::{collections::HashSet, f32::consts::PI};
@@ -39,8 +39,9 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ActiveChunk>()
+            .init_resource::<MyAssetPack>()
             .add_event::<ActiveChunkChangeRequest>()
-            .add_systems(Startup, spawn_initial_chunks)
+            .add_systems(Startup, (load_gltf, spawn_initial_chunks))
             .add_systems(Update, (manage_active_chunk, handle_active_chunk_change));
     }
 }
@@ -261,11 +262,22 @@ struct ChunkCellMarker {
     z: usize,
 }
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Resource)]
+struct MyAssetPack(Handle<Gltf>);
+
+fn load_gltf(mut commands: Commands, ass: Res<AssetServer>) {
+    let gltf = ass.load("meshes/Wall_with_door_gap.glb");
+    commands.insert_resource(MyAssetPack(gltf));
+}
+
 fn spawn_initial_chunks(
     mut commands: Commands,
     active_chunk: Res<State<ActiveChunk>>,
     game_settings: Res<State<GameSettings>>,
     asset_server: Res<AssetServer>,
+    my: Res<MyAssetPack>,
+    assets_gltf: Res<Assets<Gltf>>,
+    assets_gltfmesh: Res<Assets<GltfMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -281,6 +293,9 @@ fn spawn_initial_chunks(
             xyz,
             &mut commands,
             &asset_server,
+            &my,
+            &assets_gltf,
+            &assets_gltfmesh,
             &mut meshes,
             &mut materials,
         );
@@ -350,6 +365,9 @@ fn handle_active_chunk_change(
     game_settings: Res<State<GameSettings>>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     asset_server: Res<AssetServer>,
+    my: Res<MyAssetPack>,
+    assets_gltf: Res<Assets<Gltf>>,
+    assets_gltfmesh: Res<Assets<GltfMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -377,6 +395,9 @@ fn handle_active_chunk_change(
                     (x, y, z),
                     &mut commands,
                     &asset_server,
+                    &my,
+                    &assets_gltf,
+                    &assets_gltfmesh,
                     &mut meshes,
                     &mut materials,
                 );
@@ -389,6 +410,9 @@ fn spawn_new_chunk_bundle(
     (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
+    my: &Res<MyAssetPack>,
+    assets_gltf: &Res<Assets<Gltf>>,
+    assets_gltfmesh: &Res<Assets<GltfMesh>>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
@@ -672,27 +696,78 @@ fn spawn_new_chunk_bundle(
                         ..Default::default()
                     });
 
-                    // Top wall
-                    if cell.wall_top {
-                        grandparent.spawn((
-                            PbrBundle {
-                                mesh: mesh.clone(),
-                                material: material.clone(),
-                                transform: Transform::from_xyz(
-                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
-                                    CELL_SIZE / 2.0,
-                                    0.0,
+                    println!("A");
+                    if let Some(gltf) = assets_gltf.get(&my.0) {
+                        println!("B");
+                        let wall_with_door_gap =
+                            assets_gltfmesh.get(&gltf.named_meshes["Plane"]).unwrap();
+
+                        let x_shape: Handle<Mesh> =
+                            asset_server.load("meshes/Wall_with_door_gap.glb#Mesh0/Primitive0");
+                        let m = &meshes.get(&x_shape);
+
+                        // Top wall
+                        if cell.wall_top {
+                            grandparent.spawn((
+                                // PbrBundle {
+                                //     mesh: mesh.clone(),
+                                //     transform: Transform::from_xyz(
+                                //         CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
+                                //         CELL_SIZE / 2.0,
+                                //         0.0,
+                                //     )
+                                //     .with_rotation(Quat::from_rotation_z(PI / 2.0)),
+                                //     ..default()
+                                // },
+                                PbrBundle {
+                                    mesh: wall_with_door_gap.primitives[0].mesh.clone(),
+                                    material: material.clone(),
+                                    transform: Transform::from_xyz(
+                                        0.0,
+                                        CELL_SIZE / 2.0,
+                                        CELL_SIZE / 2.0 + WALL_THICKNESS / 2.0,
+                                    )
+                                    .with_scale(Vec3 {
+                                        x: 2.0,
+                                        y: WALL_THICKNESS,
+                                        z: 2.0,
+                                    })
+                                    .with_rotation(Quat::from_rotation_x(PI / 2.0)),
+                                    ..default()
+                                },
+                                // SceneBundle {
+                                //     scene: asset_server.load(
+                                //         GltfAssetLabel::Scene(0)
+                                //             .from_asset("meshes/Wall_with_door_gap.glb"),
+                                //     ),
+                                //     transform: Transform {
+                                //         translation: Vec3 {
+                                //             x: 0.0,
+                                //             y: CELL_SIZE / 2.0,
+                                //             z: CELL_SIZE / 2.0,
+                                //         },
+                                //         scale: Vec3 {
+                                //             x: 1.0,
+                                //             y: 1.0,
+                                //             z: WALL_THICKNESS,
+                                //         },
+                                //         ..default()
+                                //     },
+                                //     ..default()
+                                // },
+                                Collider::from_bevy_mesh(
+                                    m.unwrap(),
+                                    &ComputedColliderShape::TriMesh,
                                 )
-                                .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-                                ..default()
-                            },
-                            Collider::cuboid(
-                                CELL_SIZE / 2.0,
-                                WALL_THICKNESS / 2.0,
-                                CELL_SIZE / 2.0,
-                            ),
-                            Name::new("Top Wall"),
-                        ));
+                                .unwrap(),
+                                // Collider::cuboid(
+                                //     CELL_SIZE / 2.0,
+                                //     WALL_THICKNESS / 2.0,
+                                //     CELL_SIZE / 2.0,
+                                // ),
+                                Name::new("Top Wall"),
+                            ));
+                        }
                     }
 
                     // Bottom wall
