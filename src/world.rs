@@ -1,12 +1,13 @@
 use crate::{
     animation::CyclicAnimation,
-    interaction::Interactable,
+    interaction::{Interactable, PendingInteractionExecuted},
     maze::maze_from_rng,
     player::Player,
     settings::GameSettings,
     utils::{
         noise::noise_from_xyz_seed,
         rng::{rng_from_str, rng_from_xyz_seed},
+        CyclicCounter,
     },
     SEED,
 };
@@ -42,7 +43,14 @@ impl Plugin for WorldPlugin {
             .init_resource::<AssetLib>()
             .add_event::<ActiveChunkChangeRequest>()
             .add_systems(Startup, (load_assets, spawn_initial_chunks))
-            .add_systems(Update, (manage_active_chunk, handle_active_chunk_change));
+            .add_systems(
+                Update,
+                (
+                    manage_active_chunk,
+                    handle_active_chunk_change,
+                    handle_cyclic_interaction_transforms,
+                ),
+            );
     }
 }
 
@@ -274,6 +282,33 @@ struct ChunkCellMarker {
     z: usize,
 }
 
+#[derive(Component)]
+struct CyclicTransform {
+    counter: CyclicCounter,
+    transforms: Vec<Transform>,
+}
+
+impl CyclicTransform {
+    fn new(transforms: Vec<Transform>) -> Self {
+        let mut ct = Self::new_uncycled(transforms);
+        ct.cycle();
+        ct
+    }
+
+    fn new_uncycled(transforms: Vec<Transform>) -> Self {
+        Self {
+            counter: CyclicCounter::new(0, (transforms.len() - 1) as u32),
+            transforms,
+        }
+    }
+
+    fn cycle(&mut self) -> Transform {
+        let c = self.counter.cycle();
+        println!("c: {}", c);
+        self.transforms[c as usize].clone()
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Resource)]
 struct AssetLib {
     meshes: Vec<Handle<Mesh>>,
@@ -414,6 +449,26 @@ fn handle_active_chunk_change(
                     &mut materials,
                 );
             }
+        }
+    }
+}
+
+fn handle_cyclic_interaction_transforms(
+    mut event_reader: EventReader<PendingInteractionExecuted>,
+    mut cyclic_animation_query: Query<
+        (Entity, &mut CyclicTransform, &mut Transform),
+        With<Interactable>,
+    >,
+) {
+    for event in event_reader.read() {
+        for (entity, mut cyclic_transform, mut transform) in cyclic_animation_query.iter_mut() {
+            if entity != event.0 {
+                continue;
+            }
+
+            let t = cyclic_transform.cycle();
+            println!("changing transform");
+            *transform = t;
         }
     }
 }
@@ -707,31 +762,32 @@ fn spawn_new_chunk_bundle(
                         ..Default::default()
                     });
 
-                    // Top wall
-                    if cell.wall_top == CellWall::Solid {
-                        grandparent.spawn((
-                            PbrBundle {
-                                mesh: mesh.clone(),
-                                material: material.clone(),
-                                transform: Transform::from_xyz(
-                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
-                                    CELL_SIZE / 2.0,
-                                    0.0,
-                                )
-                                .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-                                ..default()
-                            },
-                            Collider::cuboid(
-                                CELL_SIZE / 2.0,
-                                WALL_THICKNESS / 2.0,
-                                CELL_SIZE / 2.0,
-                            ),
-                            Name::new("Top Wall"),
-                        ));
-                    }
+                    // TODO: ...
+                    // // Top wall
+                    // if cell.wall_top == CellWall::Solid {
+                    //     grandparent.spawn((
+                    //         PbrBundle {
+                    //             mesh: mesh.clone(),
+                    //             material: material.clone(),
+                    //             transform: Transform::from_xyz(
+                    //                 CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
+                    //                 CELL_SIZE / 2.0,
+                    //                 0.0,
+                    //             )
+                    //             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
+                    //             ..default()
+                    //         },
+                    //         Collider::cuboid(
+                    //             CELL_SIZE / 2.0,
+                    //             WALL_THICKNESS / 2.0,
+                    //             CELL_SIZE / 2.0,
+                    //         ),
+                    //         Name::new("Top Wall"),
+                    //     ));
+                    // }
 
                     // Top wall with door
-                    if cell.wall_top == CellWall::SolidWithDoorGap {
+                    if cell.wall_top == CellWall::Solid {
                         let solid_with_door_mesh_handle = &asset_lib.meshes[0];
                         let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
 
@@ -761,6 +817,39 @@ fn spawn_new_chunk_bundle(
                             )
                             .unwrap(),
                             Name::new("Top Wall With Door Gap"),
+                        ));
+
+                        let transforms: [Transform; 2] = [
+                            Transform::from_xyz(1.95, 1.0, 0.015)
+                                .with_scale(Vec3 {
+                                    x: 0.8,
+                                    y: 0.88,
+                                    z: 1.0,
+                                })
+                                .with_rotation(Quat::from_rotation_y(-PI / 2.0)),
+                            // TODO: ...
+                            Transform::from_xyz(1.5, 1.0, 0.5).with_scale(Vec3 {
+                                x: 0.8,
+                                y: 0.88,
+                                z: 1.0,
+                            }),
+                        ];
+
+                        grandparent.spawn((
+                            SceneBundle {
+                                scene: asset_server
+                                    .load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
+                                transform: transforms[0],
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 8.0,
+                                CELL_SIZE / 4.0,
+                                WALL_THICKNESS / 2.0,
+                            ),
+                            Interactable { range: 2.0 },
+                            CyclicTransform::new(transforms.to_vec()),
+                            Name::new("Top Wall Door"),
                         ));
                     }
 

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    utils::entity::get_n_parent,
+    utils::{entity::get_n_parent, CyclicCounter},
 };
 
 pub struct AnimationPlugin;
@@ -50,28 +50,18 @@ pub struct ContinuousAnimation;
 
 #[derive(Component)]
 pub struct CyclicAnimation {
-    curr: u32,
-    min: u32,
-    max: u32,
+    counter: CyclicCounter,
 }
 
 impl CyclicAnimation {
     pub fn new(min: u32, max: u32) -> Self {
         Self {
-            curr: min,
-            min,
-            max,
+            counter: CyclicCounter::new(min, max),
         }
     }
 
     pub fn cycle(&mut self) -> u32 {
-        let c = self.curr;
-        if self.curr == self.max {
-            self.curr = self.min;
-        } else {
-            self.curr += 1;
-        }
-        c
+        self.counter.cycle()
     }
 }
 
