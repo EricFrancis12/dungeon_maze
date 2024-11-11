@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::{
-    world::{chunk_from_xyz_seed, make_nei_chunks_xyz, GRID_SIZE},
+    world::{chunk_from_xyz_seed, make_nei_chunks_xyz, CellWall, GRID_SIZE},
     SEED,
 };
 
@@ -43,16 +43,16 @@ fn write_initial_chunks_to_html_file() {
                 for cell in row {
                     let mut classes = vec![];
 
-                    if cell.wall_top {
+                    if cell.wall_top != CellWall::None {
                         classes.push("top");
                     }
-                    if cell.wall_bottom {
+                    if cell.wall_bottom != CellWall::None {
                         classes.push("bottom");
                     }
-                    if cell.wall_left {
+                    if cell.wall_left != CellWall::None {
                         classes.push("left");
                     }
-                    if cell.wall_right {
+                    if cell.wall_right != CellWall::None {
                         classes.push("right");
                     }
 

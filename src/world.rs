@@ -11,7 +11,7 @@ use crate::{
     SEED,
 };
 
-use bevy::{gltf::GltfMesh, prelude::*, scene::ron::de};
+use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use rand::{rngs::StdRng, Rng};
 use std::{collections::HashSet, f32::consts::PI};
@@ -39,22 +39,34 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ActiveChunk>()
-            .init_resource::<MyAssetPack>()
+            .init_resource::<AssetLib>()
             .add_event::<ActiveChunkChangeRequest>()
-            .add_systems(Startup, (load_gltf, spawn_initial_chunks))
+            .add_systems(Startup, (load_assets, spawn_initial_chunks))
             .add_systems(Update, (manage_active_chunk, handle_active_chunk_change));
     }
 }
 
 #[derive(Clone, Component, Debug, Default)]
 pub struct Cell {
-    pub wall_top: bool,
-    pub wall_bottom: bool,
-    pub wall_left: bool,
-    pub wall_right: bool,
-    pub floor: bool,
-    pub ceiling: bool,
+    pub wall_top: CellWall,
+    pub wall_bottom: CellWall,
+    pub wall_left: CellWall,
+    pub wall_right: CellWall,
+    pub floor: CellWall,
+    pub ceiling: CellWall,
+    pub door_top: bool,
+    pub door_bottom: bool,
+    pub door_left: bool,
+    pub door_right: bool,
     pub special: CellSpecial,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum CellWall {
+    #[default]
+    None,
+    Solid,
+    SolidWithDoorGap,
 }
 
 #[derive(Clone, Debug, Default, EnumIter, PartialEq)]
@@ -134,7 +146,7 @@ impl WorldStructure {
                 cells: vec![
                     vec![
                         Cell {
-                            floor: true,
+                            floor: CellWall::Solid,
                             special: CellSpecial::Chair,
                             ..default()
                         };
@@ -155,10 +167,10 @@ impl WorldStructure {
                         Cell::default(),
                         Cell::default(),
                         Cell {
-                            wall_top: true,
-                            wall_bottom: true,
-                            wall_left: true,
-                            wall_right: true,
+                            wall_top: CellWall::Solid,
+                            wall_bottom: CellWall::Solid,
+                            wall_left: CellWall::Solid,
+                            wall_right: CellWall::Solid,
                             special: CellSpecial::Staircase,
                             ..default()
                         },
@@ -185,7 +197,7 @@ impl WorldStructure {
                     cells: vec![
                         vec![
                             Cell {
-                                floor: true,
+                                floor: CellWall::Solid,
                                 ..default()
                             };
                             GRID_SIZE
@@ -196,10 +208,10 @@ impl WorldStructure {
                 };
                 // tower cell
                 chunk_y_minus_1.cells[2][2] = Cell {
-                    wall_top: true,
-                    wall_left: true,
-                    wall_right: true,
-                    floor: true,
+                    wall_top: CellWall::Solid,
+                    wall_left: CellWall::Solid,
+                    wall_right: CellWall::Solid,
+                    floor: CellWall::Solid,
                     special: CellSpecial::Staircase,
                     ..Default::default()
                 };
@@ -213,15 +225,15 @@ impl WorldStructure {
                 };
                 // tower cell
                 chunk_y_plus_1.cells[2][2] = Cell {
-                    wall_top: true,
-                    wall_left: true,
-                    wall_right: true,
+                    wall_top: CellWall::Solid,
+                    wall_left: CellWall::Solid,
+                    wall_right: CellWall::Solid,
                     ..default()
                 };
                 // loft cells
                 for i in 0..=3 {
                     chunk_y_plus_1.cells[3][i] = Cell {
-                        floor: true,
+                        floor: CellWall::Solid,
                         ..default()
                     };
                 }
@@ -263,11 +275,19 @@ struct ChunkCellMarker {
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Resource)]
-struct MyAssetPack(Handle<Gltf>);
+struct AssetLib {
+    meshes: Vec<Handle<Mesh>>,
+    models: Vec<Handle<Gltf>>,
+}
 
-fn load_gltf(mut commands: Commands, ass: Res<AssetServer>) {
-    let gltf = ass.load("meshes/Wall_with_door_gap.glb");
-    commands.insert_resource(MyAssetPack(gltf));
+fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let asset_lib = AssetLib {
+        meshes: vec![asset_server.load("meshes/wall_with_door_gap.glb#Mesh0/Primitive0")],
+        models: vec![
+            // TODO: ...
+        ],
+    };
+    commands.insert_resource(asset_lib);
 }
 
 fn spawn_initial_chunks(
@@ -275,9 +295,7 @@ fn spawn_initial_chunks(
     active_chunk: Res<State<ActiveChunk>>,
     game_settings: Res<State<GameSettings>>,
     asset_server: Res<AssetServer>,
-    my: Res<MyAssetPack>,
-    assets_gltf: Res<Assets<Gltf>>,
-    assets_gltfmesh: Res<Assets<GltfMesh>>,
+    asset_lib: Res<AssetLib>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -293,9 +311,7 @@ fn spawn_initial_chunks(
             xyz,
             &mut commands,
             &asset_server,
-            &my,
-            &assets_gltf,
-            &assets_gltfmesh,
+            &asset_lib,
             &mut meshes,
             &mut materials,
         );
@@ -365,9 +381,7 @@ fn handle_active_chunk_change(
     game_settings: Res<State<GameSettings>>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     asset_server: Res<AssetServer>,
-    my: Res<MyAssetPack>,
-    assets_gltf: Res<Assets<Gltf>>,
-    assets_gltfmesh: Res<Assets<GltfMesh>>,
+    asset_lib: Res<AssetLib>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -395,9 +409,7 @@ fn handle_active_chunk_change(
                     (x, y, z),
                     &mut commands,
                     &asset_server,
-                    &my,
-                    &assets_gltf,
-                    &assets_gltfmesh,
+                    &asset_lib,
                     &mut meshes,
                     &mut materials,
                 );
@@ -410,9 +422,7 @@ fn spawn_new_chunk_bundle(
     (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
-    my: &Res<MyAssetPack>,
-    assets_gltf: &Res<Assets<Gltf>>,
-    assets_gltfmesh: &Res<Assets<GltfMesh>>,
+    asset_lib: &Res<AssetLib>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
@@ -630,7 +640,7 @@ fn spawn_new_chunk_bundle(
                     );
 
                     // Floor
-                    if cell.floor {
+                    if cell.floor == CellWall::Solid {
                         grandparent.spawn((
                             PbrBundle {
                                 mesh: mesh.clone(),
@@ -654,7 +664,7 @@ fn spawn_new_chunk_bundle(
                     }
 
                     // Ceiling
-                    if cell.ceiling {
+                    if cell.ceiling == CellWall::Solid {
                         grandparent.spawn((
                             PbrBundle {
                                 mesh: mesh.clone(),
@@ -689,6 +699,7 @@ fn spawn_new_chunk_bundle(
                     } else {
                         "images/wall-4.png"
                     };
+
                     let wall_texture_handle = asset_server.load(path);
                     let material = materials.add(StandardMaterial {
                         base_color: Color::WHITE,
@@ -696,82 +707,65 @@ fn spawn_new_chunk_bundle(
                         ..Default::default()
                     });
 
-                    println!("A");
-                    if let Some(gltf) = assets_gltf.get(&my.0) {
-                        println!("B");
-                        let wall_with_door_gap =
-                            assets_gltfmesh.get(&gltf.named_meshes["Plane"]).unwrap();
-
-                        let x_shape: Handle<Mesh> =
-                            asset_server.load("meshes/Wall_with_door_gap.glb#Mesh0/Primitive0");
-                        let m = &meshes.get(&x_shape);
-
-                        // Top wall
-                        if cell.wall_top {
-                            grandparent.spawn((
-                                // PbrBundle {
-                                //     mesh: mesh.clone(),
-                                //     transform: Transform::from_xyz(
-                                //         CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
-                                //         CELL_SIZE / 2.0,
-                                //         0.0,
-                                //     )
-                                //     .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-                                //     ..default()
-                                // },
-                                PbrBundle {
-                                    mesh: wall_with_door_gap.primitives[0].mesh.clone(),
-                                    material: material.clone(),
-                                    transform: Transform::from_xyz(
-                                        0.0,
-                                        CELL_SIZE / 2.0,
-                                        CELL_SIZE / 2.0 + WALL_THICKNESS / 2.0,
-                                    )
-                                    .with_scale(Vec3 {
-                                        x: 2.0,
-                                        y: WALL_THICKNESS,
-                                        z: 2.0,
-                                    })
-                                    .with_rotation(Quat::from_rotation_x(PI / 2.0)),
-                                    ..default()
-                                },
-                                // SceneBundle {
-                                //     scene: asset_server.load(
-                                //         GltfAssetLabel::Scene(0)
-                                //             .from_asset("meshes/Wall_with_door_gap.glb"),
-                                //     ),
-                                //     transform: Transform {
-                                //         translation: Vec3 {
-                                //             x: 0.0,
-                                //             y: CELL_SIZE / 2.0,
-                                //             z: CELL_SIZE / 2.0,
-                                //         },
-                                //         scale: Vec3 {
-                                //             x: 1.0,
-                                //             y: 1.0,
-                                //             z: WALL_THICKNESS,
-                                //         },
-                                //         ..default()
-                                //     },
-                                //     ..default()
-                                // },
-                                Collider::from_bevy_mesh(
-                                    m.unwrap(),
-                                    &ComputedColliderShape::TriMesh,
+                    // Top wall
+                    if cell.wall_top == CellWall::Solid {
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
                                 )
-                                .unwrap(),
-                                // Collider::cuboid(
-                                //     CELL_SIZE / 2.0,
-                                //     WALL_THICKNESS / 2.0,
-                                //     CELL_SIZE / 2.0,
-                                // ),
-                                Name::new("Top Wall"),
-                            ));
-                        }
+                                .with_rotation(Quat::from_rotation_z(PI / 2.0)),
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
+                            Name::new("Top Wall"),
+                        ));
+                    }
+
+                    // Top wall with door
+                    if cell.wall_top == CellWall::SolidWithDoorGap {
+                        let solid_with_door_mesh_handle = &asset_lib.meshes[0];
+                        let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
+
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: solid_with_door_mesh_handle.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
+                                )
+                                .with_scale(Vec3 {
+                                    x: 2.0,
+                                    y: WALL_THICKNESS * 2.0,
+                                    z: 2.0,
+                                })
+                                .with_rotation(
+                                    Quat::from_rotation_x(PI / 2.0)
+                                        * Quat::from_rotation_z(PI / 2.0),
+                                ),
+                                ..default()
+                            },
+                            Collider::from_bevy_mesh(
+                                solid_with_door_mesh,
+                                &ComputedColliderShape::TriMesh,
+                            )
+                            .unwrap(),
+                            Name::new("Top Wall With Door Gap"),
+                        ));
                     }
 
                     // Bottom wall
-                    if cell.wall_bottom {
+                    if cell.wall_bottom == CellWall::Solid {
                         grandparent.spawn((
                             PbrBundle {
                                 mesh: mesh.clone(),
@@ -793,8 +787,42 @@ fn spawn_new_chunk_bundle(
                         ));
                     }
 
+                    // Bottom wall with door
+                    if cell.wall_bottom == CellWall::SolidWithDoorGap {
+                        let solid_with_door_mesh_handle = &asset_lib.meshes[0];
+                        let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
+
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: solid_with_door_mesh_handle.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    -CELL_SIZE / 2.0 + WALL_THICKNESS,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
+                                )
+                                .with_scale(Vec3 {
+                                    x: 2.0,
+                                    y: WALL_THICKNESS * 2.0,
+                                    z: 2.0,
+                                })
+                                .with_rotation(
+                                    Quat::from_rotation_x(PI / 2.0)
+                                        * Quat::from_rotation_z(PI / 2.0),
+                                ),
+                                ..default()
+                            },
+                            Collider::from_bevy_mesh(
+                                solid_with_door_mesh,
+                                &ComputedColliderShape::TriMesh,
+                            )
+                            .unwrap(),
+                            Name::new("Bottom Wall With Door Gap"),
+                        ));
+                    }
+
                     // Left wall
-                    if cell.wall_left {
+                    if cell.wall_left == CellWall::Solid {
                         grandparent.spawn((
                             PbrBundle {
                                 mesh: mesh.clone(),
@@ -816,8 +844,39 @@ fn spawn_new_chunk_bundle(
                         ));
                     }
 
+                    // Left wall with door
+                    if cell.wall_left == CellWall::SolidWithDoorGap {
+                        let solid_with_door_mesh_handle = &asset_lib.meshes[0];
+                        let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
+
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: solid_with_door_mesh_handle.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    0.0,
+                                    CELL_SIZE / 2.0,
+                                    CELL_SIZE / 2.0 - WALL_THICKNESS,
+                                )
+                                .with_scale(Vec3 {
+                                    x: 2.0,
+                                    y: WALL_THICKNESS * 2.0,
+                                    z: 2.0,
+                                })
+                                .with_rotation(Quat::from_rotation_x(PI / 2.0)),
+                                ..default()
+                            },
+                            Collider::from_bevy_mesh(
+                                solid_with_door_mesh,
+                                &ComputedColliderShape::TriMesh,
+                            )
+                            .unwrap(),
+                            Name::new("Left Wall With Door Gap"),
+                        ));
+                    }
+
                     // Right wall
-                    if cell.wall_right {
+                    if cell.wall_right == CellWall::Solid {
                         grandparent.spawn((
                             PbrBundle {
                                 mesh: mesh.clone(),
@@ -836,6 +895,37 @@ fn spawn_new_chunk_bundle(
                                 CELL_SIZE / 2.0,
                             ),
                             Name::new("Right Wall"),
+                        ));
+                    }
+
+                    // Right wall with door
+                    if cell.wall_right == CellWall::SolidWithDoorGap {
+                        let solid_with_door_mesh_handle = &asset_lib.meshes[0];
+                        let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
+
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: solid_with_door_mesh_handle.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    0.0,
+                                    CELL_SIZE / 2.0,
+                                    -CELL_SIZE / 2.0,
+                                )
+                                .with_scale(Vec3 {
+                                    x: 2.0,
+                                    y: WALL_THICKNESS * 2.0,
+                                    z: 2.0,
+                                })
+                                .with_rotation(Quat::from_rotation_x(PI / 2.0)),
+                                ..default()
+                            },
+                            Collider::from_bevy_mesh(
+                                solid_with_door_mesh,
+                                &ComputedColliderShape::TriMesh,
+                            )
+                            .unwrap(),
+                            Name::new("Right Wall With Door Gap"),
                         ));
                     }
                 });
@@ -889,12 +979,12 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
     let w = GRID_SIZE / 2;
 
     // left and right walls
-    cells[h][0].wall_left = false;
-    cells[h][GRID_SIZE - 1].wall_right = false;
+    cells[h][0].wall_left = CellWall::None;
+    cells[h][GRID_SIZE - 1].wall_right = CellWall::None;
 
     // top and bottom walls
-    cells[0][w].wall_top = false;
-    cells[GRID_SIZE - 1][w].wall_bottom = false;
+    cells[0][w].wall_top = CellWall::None;
+    cells[GRID_SIZE - 1][w].wall_bottom = CellWall::None;
 
     // ceiling and floor (y axis)
     for h in 0..GRID_SIZE {
@@ -905,7 +995,7 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
                 (x, y, z, w, h),
             ));
             if y_minus_1_rng.gen_bool(WALL_BREAK_PROB) {
-                cells[h][w].floor = false;
+                cells[h][w].floor = CellWall::None;
             }
 
             let mut y_plus_1_rng = rng_from_str(seed_str_from_neis(
@@ -914,7 +1004,7 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
                 (x, y + 1, z, w, h),
             ));
             if y_plus_1_rng.gen_bool(WALL_BREAK_PROB) {
-                cells[h][w].ceiling = false;
+                cells[h][w].ceiling = CellWall::None;
             }
         }
     }
@@ -922,7 +1012,7 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
     let mut floored_cells: Vec<(usize, usize)> = Vec::new();
     for h in 0..GRID_SIZE {
         for w in 0..GRID_SIZE {
-            if cells[h][w].floor {
+            if cells[h][w].floor == CellWall::Solid {
                 floored_cells.push((w, h));
             }
         }

@@ -1,8 +1,9 @@
 use crate::{
     utils::rng::seed_to_rng,
-    world::{Cell, CellSpecial},
+    world::{Cell, CellSpecial, CellWall},
 };
 
+use bevy::utils::default;
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashSet;
 
@@ -17,13 +18,14 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
     let mut maze: Maze = vec![
         vec![
             Cell {
-                wall_top: true,
-                wall_bottom: true,
-                wall_left: true,
-                wall_right: true,
-                floor: true,
-                ceiling: true,
+                wall_top: CellWall::Solid,
+                wall_bottom: CellWall::Solid,
+                wall_left: CellWall::Solid,
+                wall_right: CellWall::Solid,
+                floor: CellWall::Solid,
+                ceiling: CellWall::Solid,
                 special: CellSpecial::None,
+                ..default()
             };
             width
         ];
@@ -77,20 +79,20 @@ pub fn maze_from_rng(rng: &mut StdRng, height: usize, width: usize) -> Maze {
         // Open walls based on the movement direction
         if next_x == x && next_y == y + 1 {
             // Moving down
-            maze[y][x].wall_bottom = false;
-            maze[next_y][next_x].wall_top = false;
+            maze[y][x].wall_bottom = CellWall::None;
+            maze[next_y][next_x].wall_top = CellWall::None;
         } else if next_x == x && next_y + 1 == y {
             // Moving up
-            maze[y][x].wall_top = false;
-            maze[next_y][next_x].wall_bottom = false;
+            maze[y][x].wall_top = CellWall::None;
+            maze[next_y][next_x].wall_bottom = CellWall::None;
         } else if next_x + 1 == x && next_y == y {
             // Moving left
-            maze[y][x].wall_left = false;
-            maze[next_y][next_x].wall_right = false;
+            maze[y][x].wall_left = CellWall::None;
+            maze[next_y][next_x].wall_right = CellWall::None;
         } else if next_x == x + 1 && next_y == y {
             // Moving right
-            maze[y][x].wall_right = false;
-            maze[next_y][next_x].wall_left = false;
+            maze[y][x].wall_right = CellWall::None;
+            maze[next_y][next_x].wall_left = CellWall::None;
         }
 
         x = next_x;
