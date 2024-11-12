@@ -1,6 +1,5 @@
 mod animation;
 mod camera;
-mod chunk_test;
 mod error;
 mod interaction;
 mod player;
@@ -8,6 +7,12 @@ mod save;
 mod settings;
 mod utils;
 mod world;
+
+#[cfg(test)]
+mod chunk_test;
+
+#[cfg(debug_assertions)]
+mod debug;
 
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
@@ -17,10 +22,11 @@ use save::GameSavePlugin;
 use settings::SettingsPlugin;
 use world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE};
 
+#[cfg(debug_assertions)]
+use debug::DebugPlugin;
+
 use bevy::prelude::*;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
-use std::env;
 
 pub const SEED: u32 = 1234;
 
@@ -32,8 +38,6 @@ fn main() {
         CHUNK_SIZE,
         CELL_SIZE,
     );
-
-    let args: Vec<String> = env::args().collect();
 
     let mut app = App::new();
 
@@ -47,18 +51,9 @@ fn main() {
         GameSavePlugin,
         SettingsPlugin,
         CameraPlugin,
+        #[cfg(debug_assertions)]
+        DebugPlugin,
     ));
-
-    if args.contains(&String::from("rapier")) {
-        app.add_plugins(RapierDebugRenderPlugin {
-            enabled: true,
-            mode: DebugRenderMode::all(),
-            ..default()
-        });
-    }
-    if args.contains(&String::from("world")) {
-        app.add_plugins(WorldInspectorPlugin::new());
-    }
 
     app.run();
 }
