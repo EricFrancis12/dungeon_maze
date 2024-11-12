@@ -32,6 +32,16 @@ const WALL_BREAK_PROB: f64 = 0.2;
 const WORLD_STRUCTURE_GEN_PROB: f64 = 0.08;
 
 const DOOR_CLOSE_FRAMES: usize = 24;
+const DOOR_SCALE: Vec3 = Vec3 {
+    x: 0.8,
+    y: 0.88,
+    z: 1.0,
+};
+const WALL_WITH_DOOR_SCALE: Vec3 = Vec3 {
+    x: 2.0,
+    y: WALL_THICKNESS * 2.0,
+    z: 2.0,
+};
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -832,11 +842,7 @@ fn spawn_new_chunk_bundle(
                                     CELL_SIZE / 2.0,
                                     0.0,
                                 )
-                                .with_scale(Vec3 {
-                                    x: 2.0,
-                                    y: WALL_THICKNESS * 2.0,
-                                    z: 2.0,
-                                })
+                                .with_scale(WALL_WITH_DOOR_SCALE)
                                 .with_rotation(
                                     Quat::from_rotation_x(PI / 2.0)
                                         * Quat::from_rotation_z(PI / 2.0),
@@ -855,17 +861,9 @@ fn spawn_new_chunk_bundle(
                     // Top door
                     if cell.door_top {
                         let start = Transform::from_xyz(1.95, 1.0, 0.015)
-                            .with_scale(Vec3 {
-                                x: 0.8,
-                                y: 0.88,
-                                z: 1.0,
-                            })
+                            .with_scale(DOOR_SCALE)
                             .with_rotation(Quat::from_rotation_y(-PI / 2.0));
-                        let end = Transform::from_xyz(1.5, 1.0, 0.5).with_scale(Vec3 {
-                            x: 0.8,
-                            y: 0.88,
-                            z: 1.0,
-                        });
+                        let end = Transform::from_xyz(1.5, 1.0, 0.5).with_scale(DOOR_SCALE);
 
                         let transforms = incr_betw_transforms(start, end, DOOR_CLOSE_FRAMES);
                         let mut clone = transforms.clone();
@@ -926,11 +924,7 @@ fn spawn_new_chunk_bundle(
                                     CELL_SIZE / 2.0,
                                     0.0,
                                 )
-                                .with_scale(Vec3 {
-                                    x: 2.0,
-                                    y: WALL_THICKNESS * 2.0,
-                                    z: 2.0,
-                                })
+                                .with_scale(WALL_WITH_DOOR_SCALE)
                                 .with_rotation(
                                     Quat::from_rotation_x(PI / 2.0)
                                         * Quat::from_rotation_z(PI / 2.0),
@@ -948,7 +942,33 @@ fn spawn_new_chunk_bundle(
 
                     // Bottom door
                     if cell.door_bottom {
-                        // TODO: ...
+                        let start = Transform::from_xyz(-1.95, 1.0, -0.015)
+                            .with_scale(DOOR_SCALE)
+                            .with_rotation(Quat::from_rotation_y(PI / 2.0));
+                        let end = Transform::from_xyz(-1.5, 1.0, -0.5)
+                            .with_scale(DOOR_SCALE)
+                            .with_rotation(Quat::from_rotation_y(PI));
+
+                        let transforms = incr_betw_transforms(start, end, DOOR_CLOSE_FRAMES);
+                        let mut clone = transforms.clone();
+                        clone.reverse();
+
+                        grandparent.spawn((
+                            SceneBundle {
+                                scene: asset_server
+                                    .load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
+                                transform: transforms[0],
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 8.0,
+                                CELL_SIZE / 4.0,
+                                WALL_THICKNESS / 2.0,
+                            ),
+                            Interactable { range: 2.0 },
+                            CyclicTransform::new_cycled(vec![transforms, clone]),
+                            Name::new("Bottom Wall Door"),
+                        ));
                     }
 
                     // Left wall
@@ -988,11 +1008,7 @@ fn spawn_new_chunk_bundle(
                                     CELL_SIZE / 2.0,
                                     CELL_SIZE / 2.0 - WALL_THICKNESS,
                                 )
-                                .with_scale(Vec3 {
-                                    x: 2.0,
-                                    y: WALL_THICKNESS * 2.0,
-                                    z: 2.0,
-                                })
+                                .with_scale(WALL_WITH_DOOR_SCALE)
                                 .with_rotation(Quat::from_rotation_x(PI / 2.0)),
                                 ..default()
                             },
@@ -1007,7 +1023,33 @@ fn spawn_new_chunk_bundle(
 
                     // Left door
                     if cell.door_left {
-                        // TODO: ...
+                        let start = Transform::from_xyz(-0.015, 1.0, 1.95)
+                            .with_scale(DOOR_SCALE)
+                            .with_rotation(Quat::from_rotation_y(PI));
+                        let end = Transform::from_xyz(-0.5, 1.0, 1.5)
+                            .with_scale(DOOR_SCALE)
+                            .with_rotation(Quat::from_rotation_y(-PI / 2.0));
+
+                        let transforms = incr_betw_transforms(start, end, DOOR_CLOSE_FRAMES);
+                        let mut clone = transforms.clone();
+                        clone.reverse();
+
+                        grandparent.spawn((
+                            SceneBundle {
+                                scene: asset_server
+                                    .load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
+                                transform: transforms[0],
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 8.0,
+                                CELL_SIZE / 4.0,
+                                WALL_THICKNESS / 2.0,
+                            ),
+                            Interactable { range: 2.0 },
+                            CyclicTransform::new_cycled(vec![transforms, clone]),
+                            Name::new("Left Wall Door"),
+                        ));
                     }
 
                     // Right wall
@@ -1047,11 +1089,7 @@ fn spawn_new_chunk_bundle(
                                     CELL_SIZE / 2.0,
                                     -CELL_SIZE / 2.0,
                                 )
-                                .with_scale(Vec3 {
-                                    x: 2.0,
-                                    y: WALL_THICKNESS * 2.0,
-                                    z: 2.0,
-                                })
+                                .with_scale(WALL_WITH_DOOR_SCALE)
                                 .with_rotation(Quat::from_rotation_x(PI / 2.0)),
                                 ..default()
                             },
@@ -1066,7 +1104,31 @@ fn spawn_new_chunk_bundle(
 
                     // Right door
                     if cell.door_right {
-                        // TODO: ...
+                        let start = Transform::from_xyz(-0.015, 1.0, -1.95).with_scale(DOOR_SCALE);
+                        let end = Transform::from_xyz(0.5, 1.0, -1.5)
+                            .with_scale(DOOR_SCALE)
+                            .with_rotation(Quat::from_rotation_y(PI / 2.0));
+
+                        let transforms = incr_betw_transforms(start, end, DOOR_CLOSE_FRAMES);
+                        let mut clone = transforms.clone();
+                        clone.reverse();
+
+                        grandparent.spawn((
+                            SceneBundle {
+                                scene: asset_server
+                                    .load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
+                                transform: transforms[0],
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 8.0,
+                                CELL_SIZE / 4.0,
+                                WALL_THICKNESS / 2.0,
+                            ),
+                            Interactable { range: 2.0 },
+                            CyclicTransform::new_cycled(vec![transforms, clone]),
+                            Name::new("Right Wall Door"),
+                        ));
                     }
                 });
             }
