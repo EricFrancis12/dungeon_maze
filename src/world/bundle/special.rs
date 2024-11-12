@@ -7,7 +7,7 @@ use crate::{animation::CyclicAnimation, interaction::Interactable};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
 
-pub fn spawn_new_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
+pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
         .spawn((
             SpatialBundle {
@@ -31,7 +31,7 @@ pub fn spawn_new_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &R
         });
 }
 
-pub fn spawn_new_treasure_chest_bundle(
+pub fn spawn_treasure_chest_bundle(
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
 ) {
@@ -63,7 +63,7 @@ pub fn spawn_new_treasure_chest_bundle(
         });
 }
 
-pub fn spawn_new_staircase_bundle(
+pub fn spawn_staircase_bundle(
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
 ) {

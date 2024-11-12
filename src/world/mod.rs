@@ -74,6 +74,7 @@ pub enum CellWall {
     None,
     Solid,
     SolidWithDoorGap,
+    SolidWithWindowGap,
 }
 
 #[derive(Clone, Debug, Default, EnumIter, PartialEq)]

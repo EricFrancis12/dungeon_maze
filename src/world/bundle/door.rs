@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::Collider;
 use std::f32::consts::PI;
 
-pub fn spawn_new_door_bundle(
+pub fn spawn_door_bundle(
     side: Side,
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,

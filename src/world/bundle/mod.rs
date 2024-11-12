@@ -14,11 +14,6 @@ const DOOR_SCALE: Vec3 = Vec3 {
     y: 0.88,
     z: 1.0,
 };
-const WALL_WITH_DOOR_SCALE: Vec3 = Vec3 {
-    x: 2.0,
-    y: WALL_THICKNESS * 2.0,
-    z: 2.0,
-};
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;

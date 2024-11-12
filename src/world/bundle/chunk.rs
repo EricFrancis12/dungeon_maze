@@ -1,12 +1,12 @@
 use super::{
     super::{chunk_from_xyz_seed, AssetLib, ChunkCellMarker, ChunkMarker, CELL_SIZE, CHUNK_SIZE},
-    cell::spawn_new_cell_bundle,
+    cell::spawn_cell_bundle,
 };
 use crate::SEED;
 
 use bevy::prelude::*;
 
-pub fn spawn_new_chunk_bundle(
+pub fn spawn_chunk_bundle(
     (chunk_x, chunk_y, chunk_z): (i64, i64, i64),
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
@@ -40,7 +40,7 @@ pub fn spawn_new_chunk_bundle(
                     z,
                 };
 
-                spawn_new_cell_bundle(
+                spawn_cell_bundle(
                     cell,
                     ccm,
                     parent,

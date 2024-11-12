@@ -13,7 +13,7 @@ use super::{
 };
 use bevy::prelude::*;
 
-pub fn spawn_new_cell_bundle(
+pub fn spawn_cell_bundle(
     cell: &Cell,
     ccm: ChunkCellMarker,
     child_builder: &mut ChildBuilder,
@@ -44,17 +44,16 @@ pub fn spawn_new_cell_bundle(
 
         // Floor
         if cell.floor == CellWall::Solid {
-            spawn_new_wall_bundle(
+            spawn_solid_wall_bundle(
                 Side::Down,
                 parent,
                 &mesh,
                 &materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
             );
         }
-
         // Ceiling
         if cell.ceiling == CellWall::Solid {
-            spawn_new_wall_bundle(
+            spawn_solid_wall_bundle(
                 Side::Up,
                 parent,
                 &mesh,
@@ -81,76 +80,38 @@ pub fn spawn_new_cell_bundle(
             ..Default::default()
         });
 
-        // Top wall
-        if cell.wall_top == CellWall::Solid {
-            spawn_new_wall_bundle(Side::Top, parent, &mesh, &material);
+        // Walls
+        for (side, wall) in [
+            (Side::Top, &cell.wall_top),
+            (Side::Bottom, &cell.wall_bottom),
+            (Side::Left, &cell.wall_left),
+            (Side::Right, &cell.wall_right),
+        ] {
+            spawn_wall_bundle(side, wall, parent, asset_lib, meshes, &mesh, &material);
         }
 
-        // Top wall with door
-        if cell.wall_top == CellWall::SolidWithDoorGap {
-            spawn_new_wall_with_door_gap_bundle(Side::Top, parent, asset_lib, meshes, &material);
-        }
-
-        // Top door
-        if cell.door_top {
-            spawn_new_door_bundle(Side::Top, parent, &asset_server);
-        }
-
-        // Bottom wall
-        if cell.wall_bottom == CellWall::Solid {
-            spawn_new_wall_bundle(Side::Bottom, parent, &mesh, &material);
-        }
-
-        // Bottom wall with door
-        if cell.wall_bottom == CellWall::SolidWithDoorGap {
-            spawn_new_wall_with_door_gap_bundle(Side::Bottom, parent, asset_lib, meshes, &material);
-        }
-
-        // Bottom door
-        if cell.door_bottom {
-            spawn_new_door_bundle(Side::Bottom, parent, &asset_server);
-        }
-
-        // Left wall
-        if cell.wall_left == CellWall::Solid {
-            spawn_new_wall_bundle(Side::Left, parent, &mesh, &material);
-        }
-
-        // Left wall with door
-        if cell.wall_left == CellWall::SolidWithDoorGap {
-            spawn_new_wall_with_door_gap_bundle(Side::Left, parent, asset_lib, meshes, &material);
-        }
-
-        // Left door
-        if cell.door_left {
-            spawn_new_door_bundle(Side::Left, parent, &asset_server);
-        }
-
-        // Right wall
-        if cell.wall_right == CellWall::Solid {
-            spawn_new_wall_bundle(Side::Right, parent, &mesh, &material);
-        }
-
-        // Right wall with door
-        if cell.wall_right == CellWall::SolidWithDoorGap {
-            spawn_new_wall_with_door_gap_bundle(Side::Right, parent, asset_lib, meshes, &material);
-        }
-
-        // Right door
-        if cell.door_right {
-            spawn_new_door_bundle(Side::Right, parent, &asset_server);
+        // Doors
+        for (side, door) in [
+            (Side::Top, cell.door_top),
+            (Side::Bottom, cell.door_bottom),
+            (Side::Left, cell.door_left),
+            (Side::Right, cell.door_right),
+        ] {
+            if door {
+                spawn_door_bundle(side, parent, &asset_server);
+            }
         }
 
         // Special
         match cell.special {
             CellSpecial::None => (),
             CellSpecial::Chair => {
-                spawn_new_chair_bundle(parent, asset_server);
+                spawn_chair_bundle(parent, asset_server);
             }
             CellSpecial::TreasureChest => {
-                spawn_new_treasure_chest_bundle(parent, asset_server);
+                spawn_treasure_chest_bundle(parent, asset_server);
             }
-            CellSpecial::Staircase => spawn_new_staircase_bundle(parent, asset_server),
+            CellSpecial::Staircase => spawn_staircase_bundle(parent, asset_server),
         }
     });
 }

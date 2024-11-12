@@ -1,6 +1,6 @@
 use super::{
-    bundle::chunk::spawn_new_chunk_bundle, make_nei_chunks_xyz, ActiveChunk,
-    ActiveChunkChangeRequest, AssetLib, ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
+    bundle::chunk::spawn_chunk_bundle, make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest,
+    AssetLib, ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
@@ -13,7 +13,10 @@ use std::collections::HashSet;
 
 pub fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let asset_lib = AssetLib {
-        meshes: vec![asset_server.load("meshes/wall_with_door_gap.glb#Mesh0/Primitive0")],
+        meshes: vec![
+            asset_server.load("meshes/wall_with_door_gap.glb#Mesh0/Primitive0"),
+            asset_server.load("meshes/wall_with_window_gap.glb#Mesh0/Primitive0"),
+        ],
         models: vec![
             // TODO: ...
         ],
@@ -38,7 +41,7 @@ pub fn spawn_initial_chunks(
         render_dist.2,
     );
     for xyz in chunks {
-        spawn_new_chunk_bundle(
+        spawn_chunk_bundle(
             xyz,
             &mut commands,
             &asset_server,
@@ -136,7 +139,7 @@ pub fn handle_active_chunk_change(
         // Spawn new chunks that are not currently existing
         for (x, y, z) in new_chunks {
             if !existing_chunks.contains(&(x, y, z)) {
-                spawn_new_chunk_bundle(
+                spawn_chunk_bundle(
                     (x, y, z),
                     &mut commands,
                     &asset_server,
