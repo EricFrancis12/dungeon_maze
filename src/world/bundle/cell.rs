@@ -9,6 +9,7 @@ use super::{
     door::*,
     special::*,
     wall::*,
+    window::spawn_window_bundle,
     WALL_THICKNESS,
 };
 use bevy::prelude::*;
@@ -99,6 +100,18 @@ pub fn spawn_cell_bundle(
         ] {
             if door {
                 spawn_door_bundle(side, parent, &asset_server);
+            }
+        }
+
+        // Windows
+        for (side, window) in [
+            (Side::Top, cell.window_top),
+            (Side::Bottom, cell.window_bottom),
+            (Side::Left, cell.window_left),
+            (Side::Right, cell.window_right),
+        ] {
+            if window {
+                spawn_window_bundle(side, parent, &asset_server);
             }
         }
 

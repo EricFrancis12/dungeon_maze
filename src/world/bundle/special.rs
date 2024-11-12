@@ -1,11 +1,15 @@
-use super::{
-    CHAIR_COLLIDER_HX, CHAIR_COLLIDER_HY, CHAIR_COLLIDER_HZ, TREASURE_CHEST_COLLIDER_HX,
-    TREASURE_CHEST_COLLIDER_HY, TREASURE_CHEST_COLLIDER_HZ,
-};
 use crate::{animation::CyclicAnimation, interaction::Interactable};
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
+
+const CHAIR_COLLIDER_HX: f32 = 0.2;
+const CHAIR_COLLIDER_HY: f32 = 0.25;
+const CHAIR_COLLIDER_HZ: f32 = 0.2;
+
+const TREASURE_CHEST_COLLIDER_HX: f32 = 0.5;
+const TREASURE_CHEST_COLLIDER_HY: f32 = 0.3;
+const TREASURE_CHEST_COLLIDER_HZ: f32 = 0.3;
 
 pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
@@ -63,10 +67,7 @@ pub fn spawn_treasure_chest_bundle(
         });
 }
 
-pub fn spawn_staircase_bundle(
-    child_builder: &mut ChildBuilder,
-    asset_server: &Res<AssetServer>,
-) {
+pub fn spawn_staircase_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
 
     let step_collider = Collider::cuboid(0.2, 0.1, 0.82);

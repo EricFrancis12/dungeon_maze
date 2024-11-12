@@ -65,6 +65,10 @@ pub struct Cell {
     pub door_bottom: bool,
     pub door_left: bool,
     pub door_right: bool,
+    pub window_top: bool,
+    pub window_bottom: bool,
+    pub window_left: bool,
+    pub window_right: bool,
     pub special: CellSpecial,
 }
 
