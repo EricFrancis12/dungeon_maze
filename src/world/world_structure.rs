@@ -11,6 +11,7 @@ pub enum WorldStructure {
     None,
     EmptySpace1,
     FilledWithChairs1,
+    House1,
     StaircaseTower2,
 }
 
@@ -20,6 +21,7 @@ impl WorldStructure {
             Self::None => 0,
             Self::EmptySpace1 => 1,
             Self::FilledWithChairs1 => 1,
+            Self::House1 => 1,
             Self::StaircaseTower2 => 2,
         }
     }
@@ -63,6 +65,60 @@ impl WorldStructure {
                 ],
                 world_structure: self.clone(),
             },
+            Self::House1 => {
+                let cells = vec![
+                    vec![Cell::new_floored(); GRID_SIZE],
+                    vec![
+                        Cell::new_floored(),
+                        Cell {
+                            wall_top: CellWall::SolidWithDoorGap,
+                            wall_left: CellWall::Solid,
+                            floor: CellWall::Solid,
+                            ceiling: CellWall::Solid,
+                            door_top: true,
+                            ..default()
+                        },
+                        Cell {
+                            wall_top: CellWall::SolidWithWindowGap,
+                            wall_right: CellWall::Solid,
+                            floor: CellWall::Solid,
+                            ceiling: CellWall::Solid,
+                            window_top: true,
+                            ..default()
+                        },
+                        Cell::new_floored(),
+                    ],
+                    vec![
+                        Cell::new_floored(),
+                        Cell {
+                            wall_bottom: CellWall::Solid,
+                            wall_left: CellWall::Solid,
+                            floor: CellWall::Solid,
+                            ceiling: CellWall::Solid,
+                            special: CellSpecial::Chair,
+                            ..default()
+                        },
+                        Cell {
+                            wall_bottom: CellWall::Solid,
+                            wall_right: CellWall::Solid,
+                            floor: CellWall::Solid,
+                            ceiling: CellWall::Solid,
+                            special: CellSpecial::TreasureChest,
+                            ..default()
+                        },
+                        Cell::new_floored(),
+                    ],
+                    vec![Cell::new_floored(); GRID_SIZE],
+                ];
+
+                Chunk {
+                    x,
+                    y,
+                    z,
+                    cells,
+                    world_structure: self.clone(),
+                }
+            }
             Self::StaircaseTower2 => Chunk {
                 x,
                 y,
@@ -93,7 +149,7 @@ impl WorldStructure {
     pub fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
-            Self::EmptySpace1 | Self::FilledWithChairs1 => {
+            Self::EmptySpace1 | Self::FilledWithChairs1 | Self::House1 => {
                 vec![self.gen_origin_chunk(_x, _y, _z)]
             }
             Self::StaircaseTower2 => {

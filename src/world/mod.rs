@@ -72,6 +72,15 @@ pub struct Cell {
     pub special: CellSpecial,
 }
 
+impl Cell {
+    pub fn new_floored() -> Self {
+        Self {
+            floor: CellWall::Solid,
+            ..default()
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum CellWall {
     #[default]
