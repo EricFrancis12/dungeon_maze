@@ -3,7 +3,6 @@ mod camera;
 mod chunk_test;
 mod error;
 mod interaction;
-mod maze;
 mod player;
 mod save;
 mod settings;

@@ -1,4 +1,5 @@
 pub mod entity;
+pub mod maze;
 pub mod noise;
 pub mod rng;
 
