@@ -1,12 +1,9 @@
-#[cfg(test)]
 use crate::{
     world::{chunk_from_xyz_seed, make_nei_chunks_xyz, CellWall, GRID_SIZE},
     SEED,
 };
 
-#[cfg(test)]
 use chrono::Utc;
-#[cfg(test)]
 use std::fs;
 
 #[test]

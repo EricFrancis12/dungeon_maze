@@ -37,7 +37,7 @@ impl Plugin for WorldPlugin {
                     manage_active_chunk,
                     handle_active_chunk_change,
                     advance_cyclic_transforms,
-                    handle_cyclic_interaction_transforms.after(advance_cyclic_transforms),
+                    handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                 ),
             );
     }
@@ -136,13 +136,47 @@ pub struct ActiveChunkChangeRequest {
 #[derive(Component)]
 pub struct ChunkMarker((i64, i64, i64));
 
-#[derive(Clone, Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, Hash, PartialEq)]
 pub struct ChunkCellMarker {
-    chunk_x: i64,
-    chunk_y: i64,
-    chunk_z: i64,
-    x: usize,
-    z: usize,
+    pub chunk_x: i64,
+    pub chunk_y: i64,
+    pub chunk_z: i64,
+    pub x: usize,
+    pub z: usize,
+}
+
+impl ChunkCellMarker {
+    pub fn from_global_transform(gt: &GlobalTransform) -> Self {
+        let tl = gt.translation();
+
+        let grid_size_minus_one = (CHUNK_SIZE / CELL_SIZE) - 1.0;
+        let half_chunk_size = CHUNK_SIZE / 2.0;
+
+        // Calculate the offset for centering at (0, 0, 0)
+        let offset_x = tl.x + half_chunk_size;
+        let offset_z = tl.z + half_chunk_size;
+
+        // Calculate chunk coordinates
+        let chunk_x = (offset_x / CHUNK_SIZE).floor() as i64;
+        let chunk_y = (tl.y / CELL_SIZE).floor() as i64;
+        let chunk_z = (offset_z / CHUNK_SIZE).floor() as i64;
+
+        // Calculate local position within the chunk
+        let x = (grid_size_minus_one
+            - ((offset_x - (chunk_x as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+        let z = (grid_size_minus_one
+            - ((offset_z - (chunk_z as f32 * CHUNK_SIZE)) / CELL_SIZE).floor())
+            as usize;
+
+        Self {
+            chunk_x,
+            chunk_y,
+            chunk_z,
+            x,
+            z,
+        }
+    }
 }
 
 #[derive(Component)]

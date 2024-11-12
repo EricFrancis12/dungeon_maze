@@ -128,7 +128,7 @@ pub fn handle_active_chunk_change(
 
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
-        // Despawn chunks that are not in the new chunks
+        // Despawn chunks that are not among new chunks
         for (chunk_entity, chunk_marker) in chunks_query.iter() {
             if !new_chunks.contains(&chunk_marker.0) {
                 commands.entity(chunk_entity).despawn_recursive();
@@ -136,7 +136,7 @@ pub fn handle_active_chunk_change(
             existing_chunks.insert(chunk_marker.0);
         }
 
-        // Spawn new chunks that are not currently existing
+        // Spawn new chunks that do not currently exist
         for (x, y, z) in new_chunks {
             if !existing_chunks.contains(&(x, y, z)) {
                 spawn_chunk_bundle(
@@ -152,7 +152,7 @@ pub fn handle_active_chunk_change(
     }
 }
 
-pub fn handle_cyclic_interaction_transforms(
+pub fn handle_cyclic_transform_interactions(
     mut event_reader: EventReader<PendingInteractionExecuted>,
     mut cyclic_transforms_query: Query<(Entity, &mut CyclicTransform), With<Interactable>>,
 ) {

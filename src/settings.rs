@@ -1,5 +1,3 @@
-use crate::world::{ActiveChunk, ActiveChunkChangeRequest};
-
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +8,7 @@ impl Plugin for SettingsPlugin {
         app.add_event::<GameSettingsChangeRequest>()
             .add_event::<GameSettingsChanged>()
             .init_state::<GameSettings>()
-            .add_systems(Update, (change_game_settings, handle_game_settings_change));
+            .add_systems(Update, handle_game_settings_change);
     }
 }
 
@@ -20,8 +18,8 @@ pub struct GameSettings {
 }
 
 #[derive(Event)]
-struct GameSettingsChangeRequest {
-    value: GameSettings,
+pub struct GameSettingsChangeRequest {
+    pub value: GameSettings,
 }
 
 #[derive(Event)]
@@ -34,40 +32,6 @@ impl Default for ChunkRenderDist {
     fn default() -> Self {
         Self(1, 1, 1)
     }
-}
-
-fn change_game_settings(
-    mut acc_event_writer: EventWriter<ActiveChunkChangeRequest>,
-    mut gs_event_writer: EventWriter<GameSettingsChangeRequest>,
-    active_chunk: Res<State<ActiveChunk>>,
-    game_settings: Res<State<GameSettings>>,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
-    let pressed = keys.get_pressed().collect::<Vec<&KeyCode>>();
-    if pressed.is_empty() {
-        return;
-    }
-
-    let dist = match pressed[0] {
-        KeyCode::Numpad0 => 0,
-        KeyCode::Numpad1 => 1,
-        KeyCode::Numpad2 => 2,
-        KeyCode::Numpad3 => 3,
-        KeyCode::Numpad4 => 4,
-        KeyCode::Numpad5 => 5,
-        _ => return,
-    };
-
-    let mut new_game_settings = game_settings.clone();
-    new_game_settings.chunk_render_dist = ChunkRenderDist(dist, dist, dist);
-
-    gs_event_writer.send(GameSettingsChangeRequest {
-        value: new_game_settings,
-    });
-
-    acc_event_writer.send(ActiveChunkChangeRequest {
-        value: active_chunk.clone(),
-    });
 }
 
 fn handle_game_settings_change(
