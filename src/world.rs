@@ -5,6 +5,7 @@ use crate::{
     player::Player,
     settings::GameSettings,
     utils::{
+        entity::incr_betw_transforms,
         noise::noise_from_xyz_seed,
         rng::{rng_from_str, rng_from_xyz_seed},
         CyclicCounter,
@@ -15,7 +16,10 @@ use crate::{
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use rand::{rngs::StdRng, Rng};
-use std::{collections::HashSet, f32::consts::PI};
+use std::{
+    collections::{HashMap, HashSet},
+    f32::consts::PI,
+};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -26,6 +30,8 @@ pub const WALL_THICKNESS: f32 = 0.1;
 
 const WALL_BREAK_PROB: f64 = 0.2;
 const WORLD_STRUCTURE_GEN_PROB: f64 = 0.08;
+
+const DOOR_CLOSE_FRAMES: usize = 24;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -48,7 +54,8 @@ impl Plugin for WorldPlugin {
                 (
                     manage_active_chunk,
                     handle_active_chunk_change,
-                    handle_cyclic_interaction_transforms,
+                    advance_cyclic_transforms,
+                    handle_cyclic_interaction_transforms.after(advance_cyclic_transforms),
                 ),
             );
     }
@@ -285,27 +292,50 @@ struct ChunkCellMarker {
 #[derive(Component)]
 struct CyclicTransform {
     counter: CyclicCounter,
-    transforms: Vec<Transform>,
+    transforms: HashMap<u32, Vec<Transform>>,
+    index: Option<usize>,
 }
 
 impl CyclicTransform {
-    fn new(transforms: Vec<Transform>) -> Self {
-        let mut ct = Self::new_uncycled(transforms);
-        ct.cycle();
-        ct
-    }
+    fn new(transforms: Vec<Vec<Transform>>) -> Self {
+        let mut hm: HashMap<u32, Vec<Transform>> = HashMap::new();
+        for (i, v) in transforms.iter().enumerate() {
+            hm.insert(i as u32, v.clone());
+        }
 
-    fn new_uncycled(transforms: Vec<Transform>) -> Self {
         Self {
             counter: CyclicCounter::new(0, (transforms.len() - 1) as u32),
-            transforms,
+            transforms: hm,
+            index: None,
         }
     }
 
-    fn cycle(&mut self) -> Transform {
-        let c = self.counter.cycle();
-        println!("c: {}", c);
-        self.transforms[c as usize].clone()
+    fn new_cycled(transforms: Vec<Vec<Transform>>) -> Self {
+        let mut ct = Self::new(transforms);
+        ct.counter.cycle();
+        ct
+    }
+
+    fn cycle(&mut self) -> u32 {
+        self.index = Some(0);
+        self.counter.cycle()
+    }
+
+    fn tick(&mut self) -> Option<&Transform> {
+        if let Some(i) = self.index {
+            let transforms = self.transforms.get(&self.counter.value()).unwrap();
+            let next_index = i + 1;
+            let max_index = transforms.len() - 1;
+
+            self.index = if next_index > max_index {
+                None
+            } else {
+                Some(next_index)
+            };
+
+            return transforms.get(i);
+        }
+        None
     }
 }
 
@@ -455,20 +485,23 @@ fn handle_active_chunk_change(
 
 fn handle_cyclic_interaction_transforms(
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    mut cyclic_animation_query: Query<
-        (Entity, &mut CyclicTransform, &mut Transform),
-        With<Interactable>,
-    >,
+    mut cyclic_transforms_query: Query<(Entity, &mut CyclicTransform), With<Interactable>>,
 ) {
     for event in event_reader.read() {
-        for (entity, mut cyclic_transform, mut transform) in cyclic_animation_query.iter_mut() {
-            if entity != event.0 {
-                continue;
+        for (entity, mut cyclic_transform) in cyclic_transforms_query.iter_mut() {
+            if entity == event.0 {
+                cyclic_transform.cycle();
             }
+        }
+    }
+}
 
-            let t = cyclic_transform.cycle();
-            println!("changing transform");
-            *transform = t;
+fn advance_cyclic_transforms(
+    mut cyclic_transforms_query: Query<(&mut CyclicTransform, &mut Transform)>,
+) {
+    for (mut ct, mut transform) in cyclic_transforms_query.iter_mut() {
+        if let Some(t) = ct.tick() {
+            *transform = t.clone();
         }
     }
 }
@@ -762,32 +795,31 @@ fn spawn_new_chunk_bundle(
                         ..Default::default()
                     });
 
-                    // TODO: ...
-                    // // Top wall
-                    // if cell.wall_top == CellWall::Solid {
-                    //     grandparent.spawn((
-                    //         PbrBundle {
-                    //             mesh: mesh.clone(),
-                    //             material: material.clone(),
-                    //             transform: Transform::from_xyz(
-                    //                 CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
-                    //                 CELL_SIZE / 2.0,
-                    //                 0.0,
-                    //             )
-                    //             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-                    //             ..default()
-                    //         },
-                    //         Collider::cuboid(
-                    //             CELL_SIZE / 2.0,
-                    //             WALL_THICKNESS / 2.0,
-                    //             CELL_SIZE / 2.0,
-                    //         ),
-                    //         Name::new("Top Wall"),
-                    //     ));
-                    // }
+                    // Top wall
+                    if cell.wall_top == CellWall::Solid {
+                        grandparent.spawn((
+                            PbrBundle {
+                                mesh: mesh.clone(),
+                                material: material.clone(),
+                                transform: Transform::from_xyz(
+                                    CELL_SIZE / 2.0 - WALL_THICKNESS / 2.0,
+                                    CELL_SIZE / 2.0,
+                                    0.0,
+                                )
+                                .with_rotation(Quat::from_rotation_z(PI / 2.0)),
+                                ..default()
+                            },
+                            Collider::cuboid(
+                                CELL_SIZE / 2.0,
+                                WALL_THICKNESS / 2.0,
+                                CELL_SIZE / 2.0,
+                            ),
+                            Name::new("Top Wall"),
+                        ));
+                    }
 
                     // Top wall with door
-                    if cell.wall_top == CellWall::Solid {
+                    if cell.wall_top == CellWall::SolidWithDoorGap {
                         let solid_with_door_mesh_handle = &asset_lib.meshes[0];
                         let solid_with_door_mesh = meshes.get(solid_with_door_mesh_handle).unwrap();
 
@@ -818,22 +850,26 @@ fn spawn_new_chunk_bundle(
                             .unwrap(),
                             Name::new("Top Wall With Door Gap"),
                         ));
+                    }
 
-                        let transforms: [Transform; 2] = [
-                            Transform::from_xyz(1.95, 1.0, 0.015)
-                                .with_scale(Vec3 {
-                                    x: 0.8,
-                                    y: 0.88,
-                                    z: 1.0,
-                                })
-                                .with_rotation(Quat::from_rotation_y(-PI / 2.0)),
-                            // TODO: ...
-                            Transform::from_xyz(1.5, 1.0, 0.5).with_scale(Vec3 {
+                    // Top door
+                    if cell.door_top {
+                        let start = Transform::from_xyz(1.95, 1.0, 0.015)
+                            .with_scale(Vec3 {
                                 x: 0.8,
                                 y: 0.88,
                                 z: 1.0,
-                            }),
-                        ];
+                            })
+                            .with_rotation(Quat::from_rotation_y(-PI / 2.0));
+                        let end = Transform::from_xyz(1.5, 1.0, 0.5).with_scale(Vec3 {
+                            x: 0.8,
+                            y: 0.88,
+                            z: 1.0,
+                        });
+
+                        let transforms = incr_betw_transforms(start, end, DOOR_CLOSE_FRAMES);
+                        let mut clone = transforms.clone();
+                        clone.reverse();
 
                         grandparent.spawn((
                             SceneBundle {
@@ -848,7 +884,7 @@ fn spawn_new_chunk_bundle(
                                 WALL_THICKNESS / 2.0,
                             ),
                             Interactable { range: 2.0 },
-                            CyclicTransform::new(transforms.to_vec()),
+                            CyclicTransform::new_cycled(vec![transforms, clone]),
                             Name::new("Top Wall Door"),
                         ));
                     }
@@ -910,6 +946,11 @@ fn spawn_new_chunk_bundle(
                         ));
                     }
 
+                    // Bottom door
+                    if cell.door_bottom {
+                        // TODO: ...
+                    }
+
                     // Left wall
                     if cell.wall_left == CellWall::Solid {
                         grandparent.spawn((
@@ -964,6 +1005,11 @@ fn spawn_new_chunk_bundle(
                         ));
                     }
 
+                    // Left door
+                    if cell.door_left {
+                        // TODO: ...
+                    }
+
                     // Right wall
                     if cell.wall_right == CellWall::Solid {
                         grandparent.spawn((
@@ -1016,6 +1062,11 @@ fn spawn_new_chunk_bundle(
                             .unwrap(),
                             Name::new("Right Wall With Door Gap"),
                         ));
+                    }
+
+                    // Right door
+                    if cell.door_right {
+                        // TODO: ...
                     }
                 });
             }

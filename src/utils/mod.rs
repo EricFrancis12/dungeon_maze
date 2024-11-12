@@ -17,6 +17,10 @@ impl CyclicCounter {
         }
     }
 
+    pub fn value(&self) -> u32 {
+        self.curr
+    }
+
     pub fn cycle(&mut self) -> u32 {
         let c = self.curr;
         if self.curr == self.max {
