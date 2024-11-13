@@ -4,7 +4,7 @@ use bevy_rapier3d::prelude::*;
 use std::{env, f32::consts::PI};
 
 use crate::{
-    player::Player,
+    player::{Player, PlayerState},
     settings::{ChunkRenderDist, GameSettings, GameSettingsChangeRequest},
     world::{ActiveChunk, ActiveChunkChangeRequest, ChunkCellMarker},
 };
@@ -29,6 +29,10 @@ impl Plugin for DebugPlugin {
 
         if args.contains(&String::from("render")) {
             app.add_systems(Update, change_game_settings_render_dist);
+        }
+
+        if args.contains(&String::from("fly")) {
+            app.add_systems(Update, player_flight_movement);
         }
 
         let position_arg = args.contains(&String::from("position"));
@@ -100,6 +104,42 @@ fn change_game_settings_render_dist(
     acc_event_writer.send(ActiveChunkChangeRequest {
         value: active_chunk.clone(),
     });
+}
+
+fn player_flight_movement(
+    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
+    mut player_query: Query<&mut Transform, With<Player>>,
+    player_state: Res<State<PlayerState>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+) {
+    if *player_state.get() != PlayerState::Walking {
+        return;
+    }
+
+    for mut player_transform in player_query.iter_mut() {
+        let camera_transform = match camera_query.get_single() {
+            Ok(ct) => ct,
+            Err(err) => Err(format!("Error retrieving camera: {}", err)).unwrap(),
+        };
+
+        let mut direction = Vec3::ZERO;
+
+        // Up
+        if keys.pressed(KeyCode::KeyO) {
+            direction += *camera_transform.up();
+        }
+        // Down
+        if keys.pressed(KeyCode::KeyL) {
+            direction += *camera_transform.down();
+        }
+
+        let movement = direction.normalize_or_zero() * 10.0 * time.delta_seconds();
+
+        if direction.length_squared() > 0.0 {
+            player_transform.translation.y += movement.y;
+        }
+    }
 }
 
 fn spawn_ui_overlay(mut commands: Commands) {

@@ -27,13 +27,13 @@ impl Plugin for PlayerPlugin {
 pub struct Player;
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-enum PlayerState {
+pub enum PlayerState {
     #[default]
     Walking,
 }
 
 #[derive(Component, Reflect)]
-pub struct Speed(f32);
+pub struct Speed(pub f32);
 
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_bundle = (
