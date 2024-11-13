@@ -30,13 +30,38 @@ impl WorldStructure {
         Self::iter().map(|ws| ws.radius()).max().unwrap_or(0)
     }
 
+    pub fn weight(&self) -> f32 {
+        match self {
+            Self::None => 0.0,
+            Self::EmptySpace1 => 10.0,
+            Self::FilledWithChairs1 => 5.0,
+            Self::House1 => 0.0,
+            Self::StaircaseTower2 => 10.0,
+        }
+    }
+
+    pub fn total_weight() -> f32 {
+        Self::iter().fold(0.0, |acc, curr| acc + curr.weight())
+    }
+
     pub fn choose(rng: &mut StdRng) -> Self {
         let all: Vec<Self> = Self::iter().collect();
         if all.is_empty() {
             return Self::default();
         }
-        let i = rng.gen_range(0..all.len());
-        all[i].clone()
+
+        let weights: Vec<f32> = all.iter().map(|ws| ws.weight()).collect();
+        let rand_weight = rng.gen_range(0.0..Self::total_weight());
+
+        let mut cumulative_weight = 0.0;
+        for (index, &weight) in weights.iter().enumerate() {
+            cumulative_weight += weight;
+            if rand_weight < cumulative_weight {
+                return all[index].clone();
+            }
+        }
+
+        Self::default()
     }
 
     pub fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk {

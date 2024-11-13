@@ -1,3 +1,4 @@
+pub mod asset;
 pub mod entity;
 pub mod maze;
 pub mod noise;

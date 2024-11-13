@@ -1,6 +1,6 @@
 use super::{
     bundle::chunk::spawn_chunk_bundle, make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest,
-    AssetLib, ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
+    ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
@@ -11,17 +11,13 @@ use crate::{
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-pub fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let asset_lib = AssetLib {
-        meshes: vec![
-            asset_server.load("meshes/wall_with_door_gap.glb#Mesh0/Primitive0"),
-            asset_server.load("meshes/wall_with_window_gap.glb#Mesh0/Primitive0"),
-        ],
-        models: vec![
-            // TODO: ...
-        ],
-    };
-    commands.insert_resource(asset_lib);
+pub fn preload_assets(asset_server: Res<AssetServer>) {
+    for mesh_path in [
+        "meshes/wall_with_door_gap.glb#Mesh0/Primitive0",
+        "meshes/wall_with_window_gap.glb#Mesh0/Primitive0",
+    ] {
+        let _: Handle<Mesh> = asset_server.load(mesh_path);
+    }
 }
 
 pub fn spawn_initial_chunks(
@@ -29,7 +25,6 @@ pub fn spawn_initial_chunks(
     active_chunk: Res<State<ActiveChunk>>,
     game_settings: Res<State<GameSettings>>,
     asset_server: Res<AssetServer>,
-    asset_lib: Res<AssetLib>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -45,7 +40,6 @@ pub fn spawn_initial_chunks(
             xyz,
             &mut commands,
             &asset_server,
-            &asset_lib,
             &mut meshes,
             &mut materials,
         );
@@ -115,7 +109,6 @@ pub fn handle_active_chunk_change(
     game_settings: Res<State<GameSettings>>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     asset_server: Res<AssetServer>,
-    asset_lib: Res<AssetLib>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -143,7 +136,6 @@ pub fn handle_active_chunk_change(
                     (x, y, z),
                     &mut commands,
                     &asset_server,
-                    &asset_lib,
                     &mut meshes,
                     &mut materials,
                 );

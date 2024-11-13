@@ -1,6 +1,6 @@
 use crate::{
     utils::noise::noise_from_xyz_seed,
-    world::{AssetLib, Cell, CellSpecial, CellWall, ChunkCellMarker},
+    world::{Cell, CellSpecial, CellWall, ChunkCellMarker},
     SEED,
 };
 
@@ -19,7 +19,6 @@ pub fn spawn_cell_bundle(
     ccm: ChunkCellMarker,
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
-    asset_lib: &Res<AssetLib>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
@@ -88,7 +87,7 @@ pub fn spawn_cell_bundle(
             (Side::Left, &cell.wall_left),
             (Side::Right, &cell.wall_right),
         ] {
-            spawn_wall_bundle(side, wall, parent, asset_lib, meshes, &mesh, &material);
+            spawn_wall_bundle(side, wall, parent, asset_server, meshes, &mesh, &material);
         }
 
         // Doors
