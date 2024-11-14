@@ -1,6 +1,7 @@
 use super::{
     bundle::chunk::spawn_chunk_bundle, make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest,
-    AssetLib, ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
+    AssetLib, ChunkDespawnQueue, ChunkMarker, ChunkSpawnQueue, CyclicTransform, CELL_SIZE,
+    CHUNK_SIZE,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
@@ -24,12 +25,9 @@ pub fn preload_assets(asset_server: Res<AssetServer>, mut asset_lib: ResMut<Asse
 }
 
 pub fn spawn_initial_chunks(
-    mut commands: Commands,
     active_chunk: Res<State<ActiveChunk>>,
     game_settings: Res<State<GameSettings>>,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut next_chunk_spawn_queue: ResMut<NextState<ChunkSpawnQueue>>,
 ) {
     let render_dist = game_settings.chunk_render_dist;
     let chunks = make_nei_chunks_xyz(
@@ -38,15 +36,7 @@ pub fn spawn_initial_chunks(
         render_dist.1,
         render_dist.2,
     );
-    for xyz in chunks {
-        spawn_chunk_bundle(
-            xyz,
-            &mut commands,
-            &asset_server,
-            &mut meshes,
-            &mut materials,
-        );
-    }
+    next_chunk_spawn_queue.set(ChunkSpawnQueue(chunks));
 }
 
 pub fn manage_active_chunk(
@@ -106,14 +96,12 @@ pub fn manage_active_chunk(
 }
 
 pub fn handle_active_chunk_change(
-    mut commands: Commands,
     mut event_reader: EventReader<ActiveChunkChangeRequest>,
     chunks_query: Query<(Entity, &ChunkMarker)>,
     game_settings: Res<State<GameSettings>>,
     mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut next_chunk_spawn_queue: ResMut<NextState<ChunkSpawnQueue>>,
+    mut next_chunk_despawn_queue: ResMut<NextState<ChunkDespawnQueue>>,
 ) {
     for event in event_reader.read() {
         let chunk_xyz = event.value.to_tuple();
@@ -125,25 +113,75 @@ pub fn handle_active_chunk_change(
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
         // Despawn chunks that are not among new chunks
+        let mut new_chunk_despawn_queue = HashSet::new();
         for (chunk_entity, chunk_marker) in chunks_query.iter() {
             if !new_chunks.contains(&chunk_marker.0) {
-                commands.entity(chunk_entity).despawn_recursive();
+                // commands.entity(chunk_entity).despawn_recursive(); // TODO: ...
+                new_chunk_despawn_queue.insert(chunk_entity);
             }
             existing_chunks.insert(chunk_marker.0);
         }
 
+        let v: Vec<Entity> = new_chunk_despawn_queue.iter().map(|e| *e).collect();
+        next_chunk_despawn_queue.set(ChunkDespawnQueue(v));
+
         // Spawn new chunks that do not currently exist
+        let mut chunks = Vec::new();
         for (x, y, z) in new_chunks {
             if !existing_chunks.contains(&(x, y, z)) {
-                spawn_chunk_bundle(
-                    (x, y, z),
-                    &mut commands,
-                    &asset_server,
-                    &mut meshes,
-                    &mut materials,
-                );
+                chunks.push((x, y, z));
             }
         }
+        next_chunk_spawn_queue.set(ChunkSpawnQueue(chunks));
+    }
+}
+
+pub fn spawn_chunks_from_queue(
+    mut commands: Commands,
+    chunk_spawn_queue: Res<State<ChunkSpawnQueue>>,
+    mut next_chunk_spawn_queue: ResMut<NextState<ChunkSpawnQueue>>,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if chunk_spawn_queue.get().0.len() > 0 {
+        let mut new_chunk_spawn_queue = chunk_spawn_queue.clone();
+        let chunk = new_chunk_spawn_queue.0.pop().unwrap();
+        spawn_chunk_bundle(
+            chunk,
+            &mut commands,
+            &asset_server,
+            &mut meshes,
+            &mut materials,
+        );
+
+        next_chunk_spawn_queue.set(new_chunk_spawn_queue);
+    }
+}
+
+pub fn despawn_chunks_from_queue(
+    mut commands: Commands,
+    children_query: Query<&Children>,
+    chunk_despawn_queue: Res<State<ChunkDespawnQueue>>,
+    mut next_chunk_despawn_queue: ResMut<NextState<ChunkDespawnQueue>>,
+) {
+    if chunk_despawn_queue.get().0.len() > 0 {
+        let mut new_chunk_despawn_queue = chunk_despawn_queue.clone();
+        let chunk_entity = new_chunk_despawn_queue.0.pop().unwrap();
+
+        if let Ok(children) = children_query.get(chunk_entity) {
+            if children.len() > 0 {
+                for i in [0, 1] {
+                    if let Some(child_entity) = children.get(i) {
+                        commands.entity(*child_entity).despawn_recursive();
+                    }
+                }
+                return;
+            }
+        }
+
+        commands.entity(chunk_entity).despawn_recursive();
+        next_chunk_despawn_queue.set(new_chunk_despawn_queue);
     }
 }
 

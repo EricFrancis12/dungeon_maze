@@ -28,6 +28,8 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ActiveChunk>()
+            .init_state::<ChunkSpawnQueue>()
+            .init_state::<ChunkDespawnQueue>()
             .init_resource::<AssetLib>()
             .add_event::<ActiveChunkChangeRequest>()
             .add_systems(Startup, (preload_assets, spawn_initial_chunks))
@@ -36,12 +38,20 @@ impl Plugin for WorldPlugin {
                 (
                     manage_active_chunk,
                     handle_active_chunk_change,
+                    spawn_chunks_from_queue,
+                    despawn_chunks_from_queue,
                     advance_cyclic_transforms,
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                 ),
             );
     }
 }
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+pub struct ChunkSpawnQueue(pub Vec<(i64, i64, i64)>);
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+pub struct ChunkDespawnQueue(pub Vec<Entity>);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Resource)]
 pub struct AssetLib {
