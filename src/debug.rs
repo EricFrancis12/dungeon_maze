@@ -5,8 +5,7 @@ use std::{env, f32::consts::PI};
 
 use crate::{
     player::{Player, PlayerState},
-    settings::{ChunkRenderDist, GameSettings, GameSettingsChangeRequest},
-    world::{ActiveChunk, ActiveChunkChangeRequest, ChunkCellMarker},
+    world::ChunkCellMarker,
 };
 
 pub struct DebugPlugin;
@@ -25,10 +24,6 @@ impl Plugin for DebugPlugin {
                 mode: DebugRenderMode::all(),
                 ..default()
             });
-        }
-
-        if args.contains(&String::from("render")) {
-            app.add_systems(Update, change_game_settings_render_dist);
         }
 
         if args.contains(&String::from("fly")) {
@@ -71,40 +66,6 @@ struct CompassArm;
 
 #[derive(Component)]
 struct CompassHand(f32);
-
-fn change_game_settings_render_dist(
-    mut acc_event_writer: EventWriter<ActiveChunkChangeRequest>,
-    mut gs_event_writer: EventWriter<GameSettingsChangeRequest>,
-    active_chunk: Res<State<ActiveChunk>>,
-    game_settings: Res<State<GameSettings>>,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
-    let pressed = keys.get_pressed().collect::<Vec<&KeyCode>>();
-    if pressed.is_empty() {
-        return;
-    }
-
-    let dist = match pressed[0] {
-        KeyCode::Numpad0 => 0,
-        KeyCode::Numpad1 => 1,
-        KeyCode::Numpad2 => 2,
-        KeyCode::Numpad3 => 3,
-        KeyCode::Numpad4 => 4,
-        KeyCode::Numpad5 => 5,
-        _ => return,
-    };
-
-    let mut new_game_settings = game_settings.clone();
-    new_game_settings.chunk_render_dist = ChunkRenderDist(dist, dist, dist);
-
-    gs_event_writer.send(GameSettingsChangeRequest {
-        value: new_game_settings,
-    });
-
-    acc_event_writer.send(ActiveChunkChangeRequest {
-        value: active_chunk.clone(),
-    });
-}
 
 fn player_flight_movement(
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
