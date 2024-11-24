@@ -8,7 +8,10 @@ use std::f32::consts::PI;
 const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
 const PLAYER_COLLIDER_HZ: f32 = 0.4;
-const DEFAULT_PLAYER_SPEED: f32 = 200.0;
+
+const PLAYER_WALKING_SPEED: f32 = 200.0;
+const PLAYER_SPRINTING_SPEED: f32 = 400.0;
+
 const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 2.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
 
@@ -19,7 +22,10 @@ impl Plugin for PlayerPlugin {
         app.register_type::<Speed>()
             .init_state::<PlayerState>()
             .add_systems(Startup, spawn_player)
-            .add_systems(Update, player_walking_movement);
+            .add_systems(Update, toggle_player_sprinting)
+            .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
+            .add_systems(OnEnter(PlayerState::Sprinting), change_player_speed)
+            .add_systems(Update, player_ground_movement);
     }
 }
 
@@ -30,6 +36,13 @@ pub struct Player;
 pub enum PlayerState {
     #[default]
     Walking,
+    Sprinting,
+}
+
+impl PlayerState {
+    fn is_ground_movement(&self) -> bool {
+        *self == Self::Walking || *self == Self::Sprinting
+    }
 }
 
 #[derive(Component, Reflect)]
@@ -38,7 +51,7 @@ pub struct Speed(pub f32);
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_bundle = (
         Player,
-        Speed(DEFAULT_PLAYER_SPEED),
+        Speed(PLAYER_WALKING_SPEED),
         RigidBody::Dynamic,
         Velocity::default(),
         GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
@@ -88,14 +101,14 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-fn player_walking_movement(
+fn player_ground_movement(
     camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
     mut player_query: Query<(&mut Transform, &mut Velocity, &Speed), With<Player>>,
     player_state: Res<State<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    if *player_state.get() != PlayerState::Walking {
+    if !player_state.get().is_ground_movement() {
         return;
     }
 
@@ -152,5 +165,29 @@ fn player_walking_movement(
         player_velocity.angvel = Vec3::ZERO;
         player_velocity.linvel.x = movement.x;
         player_velocity.linvel.z = movement.z;
+    }
+}
+
+fn toggle_player_sprinting(
+    keys: Res<ButtonInput<KeyCode>>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
+) {
+    if keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
+        next_player_state.set(PlayerState::Sprinting);
+    } else if !keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Sprinting {
+        next_player_state.set(PlayerState::Walking);
+    }
+}
+
+fn change_player_speed(
+    mut player_query: Query<&mut Speed, With<Player>>,
+    player_state: Res<State<PlayerState>>,
+) {
+    if let Ok(mut player_speed) = player_query.get_single_mut() {
+        *player_speed = match *player_state.get() {
+            PlayerState::Walking => Speed(PLAYER_WALKING_SPEED),
+            PlayerState::Sprinting => Speed(PLAYER_SPRINTING_SPEED),
+        };
     }
 }

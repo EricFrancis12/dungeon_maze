@@ -1,12 +1,10 @@
-use bevy::prelude::*;
-use std::fmt::{Formatter, Result};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
 use crate::{
     settings::{ChunkRenderDist, GameSettings, GameSettingsChangeRequest, GameSettingsChanged},
     world::{ActiveChunk, ActiveChunkChangeRequest},
 };
+
+use bevy::prelude::*;
+use std::fmt::{Formatter, Result};
 
 pub struct MenuPlugin;
 
@@ -26,7 +24,7 @@ impl Plugin for MenuPlugin {
     }
 }
 
-#[derive(Clone, Component, Debug, Default, EnumIter, Eq, Hash, PartialEq)]
+#[derive(Clone, Component, Debug, Default, Eq, Hash, PartialEq)]
 enum MenuTab {
     #[default]
     Inventory,
@@ -127,7 +125,7 @@ fn spawn_menu(
                     ..default()
                 })
                 .with_children(|grandparent| {
-                    for tab in MenuTab::iter() {
+                    for tab in [MenuTab::Inventory, MenuTab::Settings] {
                         grandparent.spawn((
                             ButtonBundle {
                                 style: Style {

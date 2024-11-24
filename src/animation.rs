@@ -1,10 +1,11 @@
-use bevy::{animation::animate_targets, prelude::*};
-use std::time::Duration;
-
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
+    player::PlayerState,
     utils::{entity::get_n_parent, CyclicCounter},
 };
+
+use bevy::{animation::animate_targets, prelude::*};
+use std::time::Duration;
 
 pub struct AnimationPlugin;
 
@@ -34,6 +35,7 @@ pub enum PlayerAnimation {
     #[default]
     Idle,
     Jogging,
+    Running,
 }
 
 impl PlayerAnimation {
@@ -41,6 +43,7 @@ impl PlayerAnimation {
         match self {
             Self::Idle => 0,
             Self::Jogging => 1,
+            Self::Running => 2,
         }
     }
 }
@@ -79,6 +82,8 @@ fn setup_animations(
                     .from_asset("models/Man.glb"), // idle
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
                     .from_asset("models/Man.glb"), // jogging
+                GltfAssetLabel::Animation(PlayerAnimation::Running.index())
+                    .from_asset("models/Man.glb"), // running
                 GltfAssetLabel::Animation(1).from_asset("models/Treasure_Chest.glb"), // open
                 GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb"), // close
             ]
@@ -160,6 +165,7 @@ fn handle_cyclic_interaction_animations(
 fn change_player_animation(
     mut animation_player_query: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
     player_animation: Res<State<PlayerAnimation>>,
+    player_state: Res<State<PlayerState>>,
     mut next_player_animation: ResMut<NextState<PlayerAnimation>>,
     animation_lib: Res<AnimationLib>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -167,12 +173,22 @@ fn change_player_animation(
     for (mut animation_player, mut transitions) in animation_player_query.iter_mut() {
         let is_moving =
             keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]);
-        let animation = *player_animation.get();
 
-        let i = if is_moving && animation != PlayerAnimation::Jogging {
-            next_player_animation.set(PlayerAnimation::Jogging);
-            PlayerAnimation::Jogging.index()
-        } else if !is_moving && animation != PlayerAnimation::Idle {
+        let i = if is_moving {
+            if *player_state.get() == PlayerState::Walking
+                && *player_animation.get() != PlayerAnimation::Jogging
+            {
+                next_player_animation.set(PlayerAnimation::Jogging);
+                PlayerAnimation::Jogging.index()
+            } else if *player_state.get() == PlayerState::Sprinting
+                && *player_animation.get() != PlayerAnimation::Running
+            {
+                next_player_animation.set(PlayerAnimation::Running);
+                PlayerAnimation::Running.index()
+            } else {
+                continue;
+            }
+        } else if *player_animation.get() != PlayerAnimation::Idle {
             next_player_animation.set(PlayerAnimation::Idle);
             PlayerAnimation::Idle.index()
         } else {

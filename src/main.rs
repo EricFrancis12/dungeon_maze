@@ -46,13 +46,13 @@ fn main() {
     app.add_plugins((
         DefaultPlugins,
         RapierPhysicsPlugin::<NoUserData>::default(),
+        MenuPlugin,
         PlayerPlugin,
         AnimationPlugin,
         WorldPlugin,
         InteractionPligin,
         GameSavePlugin,
         SettingsPlugin,
-        MenuPlugin,
         CameraPlugin,
         #[cfg(debug_assertions)]
         DebugPlugin,
