@@ -223,6 +223,28 @@ fn spawn_settings_menu_content(
         ..default()
     });
 
+    child_builder.spawn(TextBundle {
+        text: Text {
+            sections: vec![TextSection::new(
+                "Render Distance:",
+                TextStyle {
+                    font_size: 16.0,
+                    ..default()
+                },
+            )],
+            ..default()
+        },
+        style: Style {
+            margin: UiRect {
+                top: Val::Px(10.0),
+                bottom: Val::Px(4.0),
+                ..default()
+            },
+            ..default()
+        },
+        ..default()
+    });
+
     child_builder
         .spawn(NodeBundle {
             style: Style {
