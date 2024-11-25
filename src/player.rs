@@ -89,6 +89,24 @@ trait Regenerator {
     }
 }
 
+macro_rules! regenerator_impl {
+    ($t:ty) => {
+        impl Regenerator for $t {
+            fn base_regen(&mut self) -> f32 {
+                self._base_regen
+            }
+
+            fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
+                &mut self._regen_modifiers
+            }
+
+            fn do_regen(&mut self) {
+                self.value = _min_max_or_betw(0.0, self.max_value, self.value + self.get_regen());
+            }
+        }
+    };
+}
+
 #[derive(Component)]
 struct Health {
     value: f32,
@@ -96,6 +114,8 @@ struct Health {
     _base_regen: f32,
     _regen_modifiers: Vec<RegenModifier>,
 }
+
+regenerator_impl!(Health);
 
 impl Health {
     fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
@@ -108,20 +128,6 @@ impl Health {
     }
 }
 
-impl Regenerator for Health {
-    fn base_regen(&mut self) -> f32 {
-        self._base_regen
-    }
-
-    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
-        &mut self._regen_modifiers
-    }
-
-    fn do_regen(&mut self) {
-        self.value = _min_max_or_betw(0.0, self.max_value, self.value + self.get_regen());
-    }
-}
-
 #[derive(Component)]
 struct Stamina {
     value: f32,
@@ -129,6 +135,8 @@ struct Stamina {
     _base_regen: f32,
     _regen_modifiers: Vec<RegenModifier>,
 }
+
+regenerator_impl!(Stamina);
 
 impl Stamina {
     fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
@@ -138,20 +146,6 @@ impl Stamina {
             _base_regen,
             _regen_modifiers: Vec::new(),
         }
-    }
-}
-
-impl Regenerator for Stamina {
-    fn base_regen(&mut self) -> f32 {
-        self._base_regen
-    }
-
-    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
-        &mut self._regen_modifiers
-    }
-
-    fn do_regen(&mut self) {
-        self.value = _min_max_or_betw(0.0, self.max_value, self.value + self.get_regen());
     }
 }
 
