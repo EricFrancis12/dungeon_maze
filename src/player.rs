@@ -12,11 +12,14 @@ const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
 const PLAYER_COLLIDER_HZ: f32 = 0.4;
 
-const PLAYER_WALKING_SPEED: f32 = 200.0;
-const PLAYER_SPRINTING_SPEED: f32 = 400.0;
+const PLAYER_MAX_HEALTH: f32 = 100.0;
+const PLAYER_BASE_HEALTH_REGEN: f32 = 0.1;
 
 const PLAYER_MAX_STAMINA: f32 = 100.0;
-const PLAYER_STAMINA_REGEN: f32 = 1.0;
+const PLAYER_BASE_STAMINA_REGEN: f32 = 1.0;
+
+const PLAYER_WALKING_SPEED: f32 = 200.0;
+const PLAYER_SPRINTING_SPEED: f32 = 400.0;
 
 const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 2.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
@@ -28,11 +31,18 @@ impl Plugin for PlayerPlugin {
         app.register_type::<Speed>()
             .init_state::<PlayerState>()
             .add_systems(Startup, spawn_player)
-            .add_systems(Update, toggle_player_sprinting)
+            .add_systems(
+                Update,
+                (
+                    toggle_player_sprinting,
+                    player_ground_movement,
+                    health_regen,
+                    stamina_regen,
+                    player_stamina_while_sprinting,
+                ),
+            )
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
-            .add_systems(OnEnter(PlayerState::Sprinting), change_player_speed)
-            .add_systems(Update, player_ground_movement)
-            .add_systems(Update, manage_player_stamina);
+            .add_systems(OnEnter(PlayerState::Sprinting), change_player_speed);
     }
 }
 
@@ -55,36 +65,93 @@ impl PlayerState {
 #[derive(Component, Reflect)]
 pub struct Speed(pub f32);
 
+// TODO: create derive macro for Regenerator
+trait Regenerator {
+    fn base_regen(&mut self) -> f32;
+
+    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier>;
+
+    fn do_regen(&mut self);
+
+    fn add_regen_modifier(&mut self, amt: f32, durr: u32) {
+        self.regen_modifiers().push(RegenModifier::new(amt, durr));
+    }
+
+    fn tick_all_regen_modifiers(&mut self) {
+        self.regen_modifiers().retain_mut(|m| m.tick() != 0);
+    }
+
+    fn get_regen(&mut self) -> f32 {
+        let br = self.base_regen();
+        self.regen_modifiers()
+            .iter()
+            .fold(br, |acc, curr| acc + curr.amt)
+    }
+}
+
+#[derive(Component)]
+struct Health {
+    value: f32,
+    max_value: f32,
+    _base_regen: f32,
+    _regen_modifiers: Vec<RegenModifier>,
+}
+
+impl Health {
+    fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
+        Self {
+            value,
+            max_value,
+            _base_regen,
+            _regen_modifiers: Vec::new(),
+        }
+    }
+}
+
+impl Regenerator for Health {
+    fn base_regen(&mut self) -> f32 {
+        self._base_regen
+    }
+
+    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
+        &mut self._regen_modifiers
+    }
+
+    fn do_regen(&mut self) {
+        self.value = _min_max_or_betw(0.0, self.max_value, self.value + self.get_regen());
+    }
+}
+
 #[derive(Component)]
 struct Stamina {
     value: f32,
     max_value: f32,
-    base_regen: f32,
-    regen_modifiers: Vec<RegenModifier>,
+    _base_regen: f32,
+    _regen_modifiers: Vec<RegenModifier>,
 }
 
 impl Stamina {
-    fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
+    fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
         Self {
             value,
             max_value,
-            base_regen,
-            regen_modifiers: Vec::new(),
+            _base_regen,
+            _regen_modifiers: Vec::new(),
         }
     }
+}
 
-    fn add_regen_modifier(&mut self, amt: f32, durr: u32) {
-        self.regen_modifiers.push(RegenModifier::new(amt, durr));
+impl Regenerator for Stamina {
+    fn base_regen(&mut self) -> f32 {
+        self._base_regen
     }
 
-    fn tick_all_regen_modifiers(&mut self) {
-        self.regen_modifiers.retain_mut(|m| m.tick() != 0);
+    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
+        &mut self._regen_modifiers
     }
 
-    fn regen(&mut self) -> f32 {
-        self.regen_modifiers
-            .iter()
-            .fold(self.base_regen, |acc, curr| acc * curr.amt)
+    fn do_regen(&mut self) {
+        self.value = _min_max_or_betw(0.0, self.max_value, self.value + self.get_regen());
     }
 }
 
@@ -110,8 +177,17 @@ impl RegenModifier {
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_bundle = (
         Player,
+        Health::new(
+            PLAYER_MAX_HEALTH,
+            PLAYER_MAX_HEALTH,
+            PLAYER_BASE_HEALTH_REGEN,
+        ),
+        Stamina::new(
+            PLAYER_MAX_STAMINA,
+            PLAYER_MAX_STAMINA,
+            PLAYER_BASE_STAMINA_REGEN,
+        ),
         Speed(PLAYER_WALKING_SPEED),
-        Stamina::new(PLAYER_MAX_STAMINA, PLAYER_MAX_STAMINA, PLAYER_STAMINA_REGEN),
         RigidBody::Dynamic,
         Velocity::default(),
         GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
@@ -229,6 +305,7 @@ fn player_ground_movement(
 }
 
 fn toggle_player_sprinting(
+    player_query: Query<&Stamina, With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
@@ -237,7 +314,10 @@ fn toggle_player_sprinting(
     // the player runs out of stamina, they are forced to release
     // ShiftLeft and press it again to resume sprinting
     if keys.just_pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
-        next_player_state.set(PlayerState::Sprinting);
+        let player_stamina = player_query.get_single().unwrap();
+        if player_stamina.value > player_stamina.max_value * 0.1 {
+            next_player_state.set(PlayerState::Sprinting);
+        }
     } else if !keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Sprinting {
         next_player_state.set(PlayerState::Walking);
     }
@@ -255,26 +335,37 @@ fn change_player_speed(
     }
 }
 
-fn manage_player_stamina(
+fn health_regen(mut health_query: Query<&mut Health>) {
+    for mut health in health_query.iter_mut() {
+        health.tick_all_regen_modifiers();
+        health.do_regen();
+    }
+}
+
+fn stamina_regen(mut stamina_query: Query<&mut Stamina>) {
+    for mut stamina in stamina_query.iter_mut() {
+        stamina.tick_all_regen_modifiers();
+        stamina.do_regen();
+    }
+}
+
+fn player_stamina_while_sprinting(
     mut player_query: Query<&mut Stamina, With<Player>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
-    let mut player_stamina = player_query.get_single_mut().unwrap();
-    player_stamina.tick_all_regen_modifiers();
+    if *player_state.get() != PlayerState::Sprinting {
+        return;
+    }
 
-    if *player_state.get() == PlayerState::Sprinting {
-        if player_stamina.value > 0.0 {
-            player_stamina.value = _max(player_stamina.value - 1.0, 0.0);
-        } else {
-            next_player_state.set(PlayerState::Walking);
-            player_stamina.add_regen_modifier(0.0, 30);
-        }
-    } else if player_stamina.value < player_stamina.max_value {
-        player_stamina.value = _min_max_or_betw(
-            0.0,
-            player_stamina.max_value,
-            player_stamina.value + player_stamina.regen(),
-        );
+    let mut player_stamina = player_query.get_single_mut().unwrap();
+
+    if player_stamina.value > 0.0 {
+        player_stamina.value = _max(player_stamina.value - 1.0, 0.0);
+        let regen = -player_stamina.get_regen();
+        player_stamina.add_regen_modifier(regen, 1);
+    } else {
+        next_player_state.set(PlayerState::Walking);
+        player_stamina.add_regen_modifier(-10_000.0, 90);
     }
 }
