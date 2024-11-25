@@ -12,6 +12,9 @@ const PLAYER_COLLIDER_HZ: f32 = 0.4;
 const PLAYER_WALKING_SPEED: f32 = 200.0;
 const PLAYER_SPRINTING_SPEED: f32 = 400.0;
 
+const PLAYER_MAX_STAMINA: u32 = 100;
+const PLAYER_MAX_STAMINA_TIMEOUT: u32 = 30;
+
 const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 2.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
 
@@ -25,7 +28,8 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, toggle_player_sprinting)
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
             .add_systems(OnEnter(PlayerState::Sprinting), change_player_speed)
-            .add_systems(Update, player_ground_movement);
+            .add_systems(Update, player_ground_movement)
+            .add_systems(Update, manage_player_stamina);
     }
 }
 
@@ -48,10 +52,24 @@ impl PlayerState {
 #[derive(Component, Reflect)]
 pub struct Speed(pub f32);
 
+#[derive(Component)]
+struct Stamina {
+    value: u32,
+    max_value: u32,
+    timeout: u32,
+    max_timeout: u32,
+}
+
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_bundle = (
         Player,
         Speed(PLAYER_WALKING_SPEED),
+        Stamina {
+            value: PLAYER_MAX_STAMINA,
+            max_value: PLAYER_MAX_STAMINA,
+            timeout: 0,
+            max_timeout: PLAYER_MAX_STAMINA_TIMEOUT,
+        },
         RigidBody::Dynamic,
         Velocity::default(),
         GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
@@ -169,11 +187,20 @@ fn player_ground_movement(
 }
 
 fn toggle_player_sprinting(
+    player_query: Query<&Stamina, With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
-    if keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
+    // using just_pressed() here instead of pressed() because if
+    // the player runs out of stamina, they are forced to release
+    // ShiftLeft and press it again to resume sprinting
+    if keys.just_pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
+        if let Ok(player_stamina) = player_query.get_single() {
+            if player_stamina.timeout != 0 {
+                return;
+            }
+        }
         next_player_state.set(PlayerState::Sprinting);
     } else if !keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Sprinting {
         next_player_state.set(PlayerState::Walking);
@@ -189,5 +216,26 @@ fn change_player_speed(
             PlayerState::Walking => Speed(PLAYER_WALKING_SPEED),
             PlayerState::Sprinting => Speed(PLAYER_SPRINTING_SPEED),
         };
+    }
+}
+
+fn manage_player_stamina(
+    mut player_query: Query<&mut Stamina, With<Player>>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
+) {
+    let mut player_stamina = player_query.get_single_mut().unwrap();
+
+    if *player_state.get() == PlayerState::Sprinting {
+        if player_stamina.value >= 1 {
+            player_stamina.value -= 1;
+        } else {
+            next_player_state.set(PlayerState::Walking);
+            player_stamina.timeout = player_stamina.max_timeout;
+        }
+    } else if player_stamina.timeout > 0 {
+        player_stamina.timeout -= 1;
+    } else if player_stamina.value < player_stamina.max_value {
+        player_stamina.value += 1;
     }
 }
