@@ -1,4 +1,7 @@
-use crate::animation::{ContinuousAnimation, PlayerAnimation};
+use crate::{
+    animation::{ContinuousAnimation, PlayerAnimation},
+    utils::{IncrCounter, _max, _min_max_or_betw},
+};
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
@@ -12,8 +15,8 @@ const PLAYER_COLLIDER_HZ: f32 = 0.4;
 const PLAYER_WALKING_SPEED: f32 = 200.0;
 const PLAYER_SPRINTING_SPEED: f32 = 400.0;
 
-const PLAYER_MAX_STAMINA: u32 = 100;
-const PLAYER_MAX_STAMINA_TIMEOUT: u32 = 30;
+const PLAYER_MAX_STAMINA: f32 = 100.0;
+const PLAYER_STAMINA_REGEN: f32 = 1.0;
 
 const DEFAULT_PLAYER_GRAVITY_SCALE: f32 = 2.0;
 const PLAYER_SPAWN_XYZ: (f32, f32, f32) = (2.0, 1.0, 2.0);
@@ -54,22 +57,61 @@ pub struct Speed(pub f32);
 
 #[derive(Component)]
 struct Stamina {
-    value: u32,
-    max_value: u32,
-    timeout: u32,
-    max_timeout: u32,
+    value: f32,
+    max_value: f32,
+    base_regen: f32,
+    regen_modifiers: Vec<RegenModifier>,
+}
+
+impl Stamina {
+    fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
+        Self {
+            value,
+            max_value,
+            base_regen,
+            regen_modifiers: Vec::new(),
+        }
+    }
+
+    fn add_regen_modifier(&mut self, amt: f32, durr: u32) {
+        self.regen_modifiers.push(RegenModifier::new(amt, durr));
+    }
+
+    fn tick_all_regen_modifiers(&mut self) {
+        self.regen_modifiers.retain_mut(|m| m.tick() != 0);
+    }
+
+    fn regen(&mut self) -> f32 {
+        self.regen_modifiers
+            .iter()
+            .fold(self.base_regen, |acc, curr| acc * curr.amt)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RegenModifier {
+    amt: f32,
+    counter: IncrCounter,
+}
+
+impl RegenModifier {
+    fn new(amt: f32, durr: u32) -> Self {
+        Self {
+            amt,
+            counter: IncrCounter::new(durr as i32, -1),
+        }
+    }
+
+    fn tick(&mut self) -> i32 {
+        self.counter.tick()
+    }
 }
 
 fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_bundle = (
         Player,
         Speed(PLAYER_WALKING_SPEED),
-        Stamina {
-            value: PLAYER_MAX_STAMINA,
-            max_value: PLAYER_MAX_STAMINA,
-            timeout: 0,
-            max_timeout: PLAYER_MAX_STAMINA_TIMEOUT,
-        },
+        Stamina::new(PLAYER_MAX_STAMINA, PLAYER_MAX_STAMINA, PLAYER_STAMINA_REGEN),
         RigidBody::Dynamic,
         Velocity::default(),
         GravityScale(DEFAULT_PLAYER_GRAVITY_SCALE),
@@ -187,7 +229,6 @@ fn player_ground_movement(
 }
 
 fn toggle_player_sprinting(
-    player_query: Query<&Stamina, With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
@@ -196,11 +237,6 @@ fn toggle_player_sprinting(
     // the player runs out of stamina, they are forced to release
     // ShiftLeft and press it again to resume sprinting
     if keys.just_pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
-        if let Ok(player_stamina) = player_query.get_single() {
-            if player_stamina.timeout != 0 {
-                return;
-            }
-        }
         next_player_state.set(PlayerState::Sprinting);
     } else if !keys.pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Sprinting {
         next_player_state.set(PlayerState::Walking);
@@ -225,17 +261,20 @@ fn manage_player_stamina(
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
     let mut player_stamina = player_query.get_single_mut().unwrap();
+    player_stamina.tick_all_regen_modifiers();
 
     if *player_state.get() == PlayerState::Sprinting {
-        if player_stamina.value >= 1 {
-            player_stamina.value -= 1;
+        if player_stamina.value > 0.0 {
+            player_stamina.value = _max(player_stamina.value - 1.0, 0.0);
         } else {
             next_player_state.set(PlayerState::Walking);
-            player_stamina.timeout = player_stamina.max_timeout;
+            player_stamina.add_regen_modifier(0.0, 30);
         }
-    } else if player_stamina.timeout > 0 {
-        player_stamina.timeout -= 1;
     } else if player_stamina.value < player_stamina.max_value {
-        player_stamina.value += 1;
+        player_stamina.value = _min_max_or_betw(
+            0.0,
+            player_stamina.max_value,
+            player_stamina.value + player_stamina.regen(),
+        );
     }
 }
