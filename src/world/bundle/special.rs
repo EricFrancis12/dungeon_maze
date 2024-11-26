@@ -51,7 +51,7 @@ pub fn spawn_treasure_chest_bundle(
                 TREASURE_CHEST_COLLIDER_HZ,
             ),
             Interactable { range: 2.0 },
-            CyclicAnimation::new(2, 3),
+            CyclicAnimation::new(3, 4),
             Name::new("Treasure Chest"),
         ))
         .with_children(|parent| {

@@ -326,7 +326,6 @@ fn change_render_dist(
     for (button, interaction) in button_query.iter() {
         if *interaction == Interaction::Pressed {
             if button.0 != game_settings.get().chunk_render_dist.0 {
-                println!("button: {}", button.0);
                 let mut value = game_settings.clone();
                 value.chunk_render_dist = ChunkRenderDist(button.0, button.0, button.0);
 
