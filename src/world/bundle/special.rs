@@ -2,6 +2,7 @@ use crate::{animation::CyclicAnimation, interaction::Interactable};
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
+use serde::{Deserialize, Serialize};
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -10,9 +11,44 @@ const CHAIR_COLLIDER_HZ: f32 = 0.2;
 const TREASURE_CHEST_COLLIDER_HX: f32 = 0.5;
 const TREASURE_CHEST_COLLIDER_HY: f32 = 0.3;
 const TREASURE_CHEST_COLLIDER_HZ: f32 = 0.3;
+const TREASURE_CHEST_MIN_ANIMATION: u32 = 3;
+const TREASURE_CHEST_MAX_ANIMATION: u32 = 4;
+const TREASURE_CHEST_INTERACTABLE_RANGE: f32 = 2.0;
+
+pub const ITEM_INTERACTABLE_RANGE: f32 = 1.8;
+
+#[derive(Clone, Component, Debug, Deserialize, Serialize)]
+pub struct Item;
+
+impl Item {
+    pub fn interactable() -> Interactable {
+        Interactable {
+            range: ITEM_INTERACTABLE_RANGE,
+        }
+    }
+}
 
 #[derive(Component)]
-struct Item;
+pub struct TreasureChest;
+
+impl TreasureChest {
+    pub fn is_open(ca: &CyclicAnimation) -> bool {
+        match ca.value() {
+            TREASURE_CHEST_MAX_ANIMATION => true,
+            _ => false,
+        }
+    }
+
+    fn cyclic_animation() -> CyclicAnimation {
+        CyclicAnimation::new(TREASURE_CHEST_MIN_ANIMATION, TREASURE_CHEST_MAX_ANIMATION)
+    }
+
+    fn interactable() -> Interactable {
+        Interactable {
+            range: TREASURE_CHEST_INTERACTABLE_RANGE,
+        }
+    }
+}
 
 pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
@@ -39,28 +75,51 @@ pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<A
 }
 
 fn spawn_item_bundle(
+    item: Item,
     child_builder: &mut ChildBuilder,
-    asset_server: &Res<AssetServer>,
-    transform: Transform,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    transform: Option<Transform>,
+    interactable: bool,
+    collider: bool,
 ) {
-    child_builder.spawn((
-        SceneBundle {
-            // TODO: ...
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Chair.glb")),
-            transform,
+    let mesh = meshes.add(
+        Cuboid::from_size(Vec3 {
+            x: 0.2,
+            y: 0.2,
+            z: 0.2,
+        })
+        .mesh(),
+    );
+
+    let mut commands = child_builder.spawn((
+        item,
+        PbrBundle {
+            mesh,
+            transform: transform.unwrap_or(Transform::default()),
             ..default()
         },
-        Interactable { range: 2.0 },
         Name::new("Item"),
     ));
+
+    if interactable {
+        commands.insert(Item::interactable());
+    }
+
+    if collider {
+        commands.insert(Collider::cuboid(0.1, 0.1, 0.1));
+    }
 }
 
 pub fn spawn_treasure_chest_bundle(
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
+    meshes: &mut ResMut<Assets<Mesh>>,
 ) {
     child_builder
         .spawn((
+            TreasureChest,
+            TreasureChest::cyclic_animation(),
+            TreasureChest::interactable(),
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, TREASURE_CHEST_COLLIDER_HY, 0.0),
                 ..default()
@@ -70,8 +129,6 @@ pub fn spawn_treasure_chest_bundle(
                 TREASURE_CHEST_COLLIDER_HY,
                 TREASURE_CHEST_COLLIDER_HZ,
             ),
-            Interactable { range: 2.0 },
-            CyclicAnimation::new(3, 4),
             Name::new("Treasure Chest"),
         ))
         .with_children(|parent| {
@@ -84,13 +141,16 @@ pub fn spawn_treasure_chest_bundle(
                 },
                 Name::new("Treasure Chest Model"),
             ));
-        });
 
-    spawn_item_bundle(
-        child_builder,
-        asset_server,
-        Transform::from_xyz(0.0, 1.0, 0.0),
-    );
+            spawn_item_bundle(
+                Item,
+                parent,
+                meshes,
+                Some(Transform::from_xyz(0.0, 0.2, 0.0)),
+                false,
+                false,
+            );
+        });
 }
 
 pub fn spawn_staircase_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {

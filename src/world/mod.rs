@@ -38,6 +38,7 @@ impl Plugin for WorldPlugin {
                     handle_active_chunk_change,
                     advance_cyclic_transforms,
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
+                    activate_items_inside_treasure_chests.after(advance_cyclic_transforms),
                 ),
             );
     }

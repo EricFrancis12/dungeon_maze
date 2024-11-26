@@ -1,5 +1,5 @@
 use crate::{
-    settings::{ChunkRenderDist, GameSettings, GameSettingsChangeRequest, GameSettingsChanged},
+    settings::{ChunkRenderDist, GameSettings, GameSettingsChanged},
     world::{ActiveChunk, ActiveChunkChangeRequest},
 };
 
@@ -318,10 +318,11 @@ fn get_tab_background_color(tab: &MenuTab, active_menu_tab: &ActiveMenuTab) -> B
 
 fn change_render_dist(
     mut acc_event_writer: EventWriter<ActiveChunkChangeRequest>,
-    mut gs_event_writer: EventWriter<GameSettingsChangeRequest>,
+    mut gs_event_writer: EventWriter<GameSettingsChanged>,
     active_chunk: Res<State<ActiveChunk>>,
     button_query: Query<(&RenderDistButton, &Interaction)>,
     game_settings: Res<State<GameSettings>>,
+    mut next_game_settings: ResMut<NextState<GameSettings>>,
 ) {
     for (button, interaction) in button_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -329,7 +330,8 @@ fn change_render_dist(
                 let mut value = game_settings.clone();
                 value.chunk_render_dist = ChunkRenderDist(button.0, button.0, button.0);
 
-                gs_event_writer.send(GameSettingsChangeRequest { value });
+                next_game_settings.set(value);
+                gs_event_writer.send(GameSettingsChanged);
 
                 acc_event_writer.send(ActiveChunkChangeRequest {
                     value: active_chunk.clone(),

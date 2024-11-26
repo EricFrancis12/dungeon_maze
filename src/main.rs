@@ -2,6 +2,7 @@ mod animation;
 mod camera;
 mod error;
 mod interaction;
+mod inventory;
 mod menu;
 mod player;
 mod save;
@@ -17,7 +18,8 @@ mod debug;
 
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
-use interaction::InteractionPligin;
+use interaction::InteractionPlugin;
+use inventory::InventoryPlugin;
 use menu::MenuPlugin;
 use player::PlayerPlugin;
 use save::GameSavePlugin;
@@ -50,10 +52,11 @@ fn main() {
         PlayerPlugin,
         AnimationPlugin,
         WorldPlugin,
-        InteractionPligin,
+        InteractionPlugin,
         GameSavePlugin,
         SettingsPlugin,
         CameraPlugin,
+        InventoryPlugin,
         #[cfg(debug_assertions)]
         DebugPlugin,
     ));

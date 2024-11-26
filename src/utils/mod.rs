@@ -59,6 +59,22 @@ impl CyclicCounter {
     }
 }
 
+pub fn contains_any<T, S1, S2>(sized1: S1, sized2: S2) -> bool
+where
+    T: PartialEq,
+    S1: IntoIterator<Item = T>,
+    S2: IntoIterator<Item = T>,
+    S2: Clone,
+{
+    let sized2_vec: Vec<T> = sized2.into_iter().collect();
+    for item in sized1 {
+        if sized2_vec.iter().any(|x| x == &item) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn _min<T: PartialOrd>(a: T, b: T) -> T {
     if a < b {
         return a;

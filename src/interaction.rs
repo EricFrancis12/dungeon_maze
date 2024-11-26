@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::player::Player;
 
-pub struct InteractionPligin;
+pub struct InteractionPlugin;
 
-impl Plugin for InteractionPligin {
+impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PendingInteractionChanged>()
             .add_event::<PendingInteractionExecuted>()
@@ -41,21 +41,31 @@ fn update_pending_interaction(
     let curr_entity = pending_interaction.get().0;
 
     // Check if player is in range of any interactables
+    let mut closest_entity: Option<(Entity, f32)> = None;
+
     for (entity, interactable, ibl_gl_transform) in interactables_query.iter() {
         let dist = player_gl_transform
             .translation()
             .distance(ibl_gl_transform.translation());
 
-        if dist <= interactable.range {
-            next_pending_interaction.set(PendingInteraction(Some(entity)));
-
-            if curr_entity.is_none() || curr_entity.unwrap() != entity {
-                event_writer.send(PendingInteractionChanged);
-            }
-            return;
+        if dist <= interactable.range
+            && (closest_entity.is_none() || dist < closest_entity.unwrap().1)
+        {
+            closest_entity = Some((entity, dist));
         }
     }
 
+    if let Some((entity, _)) = closest_entity {
+        next_pending_interaction.set(PendingInteraction(Some(entity)));
+
+        if curr_entity.is_none() || curr_entity.unwrap() != entity {
+            event_writer.send(PendingInteractionChanged);
+        }
+
+        return;
+    }
+
+    // Change back to none if no interactables in range
     if curr_entity.is_some() {
         next_pending_interaction.set(PendingInteraction(None));
         event_writer.send(PendingInteractionChanged);

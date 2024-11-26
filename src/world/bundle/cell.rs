@@ -121,7 +121,7 @@ pub fn spawn_cell_bundle(
                 spawn_chair_bundle(parent, asset_server);
             }
             CellSpecial::TreasureChest => {
-                spawn_treasure_chest_bundle(parent, asset_server);
+                spawn_treasure_chest_bundle(parent, asset_server, meshes);
             }
             CellSpecial::Staircase => spawn_staircase_bundle(parent, asset_server),
         }

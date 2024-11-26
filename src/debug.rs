@@ -5,6 +5,7 @@ use std::{env, f32::consts::PI};
 
 use crate::{
     player::{Player, PlayerState},
+    utils::contains_any,
     world::ChunkCellMarker,
 };
 
@@ -14,11 +15,13 @@ impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         let args: Vec<String> = env::args().collect();
 
-        if args.contains(&String::from("world")) {
+        let specified = |s: String| contains_any(&args, &[s, String::from("a")]);
+
+        if specified(String::from("world")) {
             app.add_plugins(WorldInspectorPlugin::new());
         }
 
-        if args.contains(&String::from("rapier")) {
+        if specified(String::from("rapier")) {
             app.add_plugins(RapierDebugRenderPlugin {
                 enabled: true,
                 mode: DebugRenderMode::all(),
@@ -26,12 +29,12 @@ impl Plugin for DebugPlugin {
             });
         }
 
-        if args.contains(&String::from("fly")) {
+        if specified(String::from("fly")) {
             app.add_systems(Update, player_flight_movement);
         }
 
-        let position_arg = args.contains(&String::from("position"));
-        let compass_arg = args.contains(&String::from("compass"));
+        let position_arg = specified(String::from("position"));
+        let compass_arg = specified(String::from("compass"));
 
         if position_arg || compass_arg {
             app.add_systems(Startup, spawn_ui_overlay);

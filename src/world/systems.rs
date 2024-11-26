@@ -1,8 +1,13 @@
 use super::{
-    bundle::chunk::spawn_chunk_bundle, make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest,
-    AssetLib, ChunkMarker, CyclicTransform, CELL_SIZE, CHUNK_SIZE,
+    bundle::{
+        chunk::spawn_chunk_bundle,
+        special::{Item, TreasureChest},
+    },
+    make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest, AssetLib, ChunkMarker,
+    CyclicTransform, CELL_SIZE, CHUNK_SIZE,
 };
 use crate::{
+    animation::CyclicAnimation,
     interaction::{Interactable, PendingInteractionExecuted},
     player::Player,
     settings::GameSettings,
@@ -147,6 +152,16 @@ pub fn handle_active_chunk_change(
     }
 }
 
+pub fn advance_cyclic_transforms(
+    mut cyclic_transforms_query: Query<(&mut CyclicTransform, &mut Transform)>,
+) {
+    for (mut ct, mut transform) in cyclic_transforms_query.iter_mut() {
+        if let Some(t) = ct.tick() {
+            *transform = t.clone();
+        }
+    }
+}
+
 pub fn handle_cyclic_transform_interactions(
     mut event_reader: EventReader<PendingInteractionExecuted>,
     mut cyclic_transforms_query: Query<(Entity, &mut CyclicTransform), With<Interactable>>,
@@ -160,12 +175,31 @@ pub fn handle_cyclic_transform_interactions(
     }
 }
 
-pub fn advance_cyclic_transforms(
-    mut cyclic_transforms_query: Query<(&mut CyclicTransform, &mut Transform)>,
+pub fn activate_items_inside_treasure_chests(
+    mut commands: Commands,
+    mut event_reader: EventReader<PendingInteractionExecuted>,
+    treasure_chests_query: Query<(Entity, &CyclicAnimation, &Children), With<TreasureChest>>,
+    interactable_item_query: Query<&Item, With<Interactable>>,
+    noninteractable_item_query: Query<&Item, Without<Interactable>>,
 ) {
-    for (mut ct, mut transform) in cyclic_transforms_query.iter_mut() {
-        if let Some(t) = ct.tick() {
-            *transform = t.clone();
+    for event in event_reader.read() {
+        for (treasure_chest_entity, cyclic_animation, children) in treasure_chests_query.iter() {
+            if treasure_chest_entity == event.0 {
+                let is_open = TreasureChest::is_open(cyclic_animation);
+                println!("is_open: {}", is_open);
+
+                for child in children.iter() {
+                    if noninteractable_item_query.get(*child).is_ok() && is_open {
+                        println!("adding interactable");
+                        commands.entity(*child).insert(Item::interactable());
+                    } else if interactable_item_query.get(*child).is_ok() && !is_open {
+                        println!("removing interactable");
+                        commands.entity(*child).remove::<Interactable>();
+                    }
+                }
+
+                break;
+            }
         }
     }
 }

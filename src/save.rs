@@ -1,5 +1,6 @@
 use crate::{
     error::Error,
+    inventory::{Inventory, InventoryChanged},
     settings::{GameSettings, GameSettingsChanged},
 };
 
@@ -17,13 +18,14 @@ pub struct GameSavePlugin;
 impl Plugin for GameSavePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_save_data)
-            .add_systems(Update, handle_save_game);
+            .add_systems(Update, save_game_automatically);
     }
 }
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct GameSave {
     pub game_settings: GameSettings,
+    pub inventory: Inventory,
 }
 
 fn load_save_data(mut next_game_settings: ResMut<NextState<GameSettings>>) {
@@ -31,16 +33,32 @@ fn load_save_data(mut next_game_settings: ResMut<NextState<GameSettings>>) {
     next_game_settings.set(game_save.game_settings);
 }
 
-fn handle_save_game(
-    mut event_reader: EventReader<GameSettingsChanged>,
+macro_rules! save_once_and_return {
+    ($event_reader:ident, $do_save:expr) => {
+        for _ in $event_reader.read() {
+            $do_save();
+            $event_reader.clear();
+            return;
+        }
+    };
+}
+
+fn save_game_automatically(
+    mut gs_event_reader: EventReader<GameSettingsChanged>,
+    mut inv_event_reader: EventReader<InventoryChanged>,
+    inventory: Res<Inventory>,
     game_settings: Res<State<GameSettings>>,
 ) {
-    for _ in event_reader.read() {
+    let do_save = || {
         write_game_save(GameSave {
             game_settings: game_settings.clone(),
+            inventory: inventory.clone(),
         })
-        .unwrap();
-    }
+        .unwrap()
+    };
+
+    save_once_and_return!(gs_event_reader, do_save);
+    save_once_and_return!(inv_event_reader, do_save);
 }
 
 fn read_game_save() -> Result<GameSave, Error> {
