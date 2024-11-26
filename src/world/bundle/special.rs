@@ -11,6 +11,9 @@ const TREASURE_CHEST_COLLIDER_HX: f32 = 0.5;
 const TREASURE_CHEST_COLLIDER_HY: f32 = 0.3;
 const TREASURE_CHEST_COLLIDER_HZ: f32 = 0.3;
 
+#[derive(Component)]
+struct Item;
+
 pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
         .spawn((
@@ -33,6 +36,23 @@ pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<A
                 Name::new("Chair Model"),
             ));
         });
+}
+
+fn spawn_item_bundle(
+    child_builder: &mut ChildBuilder,
+    asset_server: &Res<AssetServer>,
+    transform: Transform,
+) {
+    child_builder.spawn((
+        SceneBundle {
+            // TODO: ...
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Chair.glb")),
+            transform,
+            ..default()
+        },
+        Interactable { range: 2.0 },
+        Name::new("Item"),
+    ));
 }
 
 pub fn spawn_treasure_chest_bundle(
@@ -65,6 +85,12 @@ pub fn spawn_treasure_chest_bundle(
                 Name::new("Treasure Chest Model"),
             ));
         });
+
+    spawn_item_bundle(
+        child_builder,
+        asset_server,
+        Transform::from_xyz(0.0, 1.0, 0.0),
+    );
 }
 
 pub fn spawn_staircase_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
