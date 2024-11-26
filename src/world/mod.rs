@@ -1,4 +1,5 @@
 pub mod bundle;
+pub mod data;
 pub mod systems;
 pub mod world_structure;
 
@@ -7,6 +8,7 @@ use crate::utils::{
     rng::{rng_from_str, rng_from_xyz_seed},
     CyclicCounter,
 };
+use data::update_world_data_treasure_chests;
 use systems::*;
 
 use bevy::prelude::*;
@@ -39,6 +41,7 @@ impl Plugin for WorldPlugin {
                     advance_cyclic_transforms,
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                     activate_items_inside_treasure_chests.after(advance_cyclic_transforms),
+                    update_world_data_treasure_chests,
                 ),
             );
     }
@@ -182,6 +185,14 @@ impl ChunkCellMarker {
             x,
             z,
         }
+    }
+
+    pub fn chunk_xyz(&self) -> (i64, i64, i64) {
+        (self.chunk_x, self.chunk_y, self.chunk_z)
+    }
+
+    pub fn cell_xz(&self) -> (usize, usize) {
+        (self.x, self.z)
     }
 }
 

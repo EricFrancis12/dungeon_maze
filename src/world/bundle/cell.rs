@@ -1,6 +1,6 @@
 use crate::{
     utils::noise::noise_from_xyz_seed,
-    world::{Cell, CellSpecial, CellWall, ChunkCellMarker},
+    world::{data::WorldData, Cell, CellSpecial, CellWall, ChunkCellMarker},
     SEED,
 };
 
@@ -21,6 +21,7 @@ pub fn spawn_cell_bundle(
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    world_data: &Res<WorldData>,
 ) {
     let cell_bundle = (
         SpatialBundle {
@@ -121,7 +122,7 @@ pub fn spawn_cell_bundle(
                 spawn_chair_bundle(parent, asset_server);
             }
             CellSpecial::TreasureChest => {
-                spawn_treasure_chest_bundle(parent, asset_server, meshes);
+                spawn_treasure_chest_bundle(parent, asset_server, meshes, world_data, &ccm);
             }
             CellSpecial::Staircase => spawn_staircase_bundle(parent, asset_server),
         }

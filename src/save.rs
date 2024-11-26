@@ -2,6 +2,7 @@ use crate::{
     error::Error,
     inventory::{Inventory, InventoryChanged},
     settings::{GameSettings, GameSettingsChanged},
+    world::data::WorldData,
 };
 
 use bevy::prelude::*;
@@ -20,7 +21,9 @@ pub struct GameSavePlugin;
 
 impl Plugin for GameSavePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_save_data)
+        app.init_resource::<WorldData>()
+            .add_event::<WorldDataChanged>()
+            .add_systems(Startup, load_save_data)
             .add_systems(Update, save_game_automatically);
     }
 }
@@ -29,18 +32,24 @@ impl Plugin for GameSavePlugin {
 pub struct GameSave {
     pub game_settings: GameSettings,
     pub inventory: Inventory,
+    pub world_data: WorldData,
 }
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct GameSaveRead {
     pub game_settings: Option<GameSettings>,
     pub inventory: Option<Inventory>,
+    pub world_data: Option<WorldData>,
 }
+
+#[derive(Event)]
+pub struct WorldDataChanged;
 
 fn load_save_data(mut commands: Commands, mut next_game_settings: ResMut<NextState<GameSettings>>) {
     let game_save = read_game_save().unwrap();
     next_game_settings.set(game_save.game_settings);
     commands.insert_resource(game_save.inventory);
+    commands.insert_resource(game_save.world_data);
 }
 
 macro_rules! save_once_and_return {
@@ -56,19 +65,23 @@ macro_rules! save_once_and_return {
 fn save_game_automatically(
     mut gs_event_reader: EventReader<GameSettingsChanged>,
     mut inv_event_reader: EventReader<InventoryChanged>,
+    mut wd_event_reader: EventReader<WorldDataChanged>,
     game_settings: Res<State<GameSettings>>,
     inventory: Res<Inventory>,
+    world_data: Res<WorldData>,
 ) {
     let do_save = || {
         write_game_save(GameSave {
             game_settings: game_settings.clone(),
             inventory: inventory.clone(),
+            world_data: world_data.clone(),
         })
         .unwrap();
     };
 
     save_once_and_return!(gs_event_reader, do_save);
     save_once_and_return!(inv_event_reader, do_save);
+    save_once_and_return!(wd_event_reader, do_save);
 }
 
 fn read_game_save() -> Result<GameSave, Error> {
@@ -80,9 +93,10 @@ fn read_game_save() -> Result<GameSave, Error> {
     let file = fs::File::open(save_file_path)?;
 
     match serde_json::from_reader::<File, GameSaveRead>(file) {
-        Ok(g) => Ok(GameSave {
-            game_settings: g.game_settings.unwrap_or_default(),
-            inventory: g.inventory.unwrap_or_default(),
+        Ok(r) => Ok(GameSave {
+            game_settings: r.game_settings.unwrap_or_default(),
+            inventory: r.inventory.unwrap_or_default(),
+            world_data: r.world_data.unwrap_or_default(),
         }),
         Err(err) => return Err(Error::loading(err)),
     }

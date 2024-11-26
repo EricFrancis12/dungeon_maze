@@ -18,7 +18,8 @@ pub enum Error {
 macro_rules! error_impl {
     ($name:ident, $err_enum:ident) => {
         impl Error {
-            pub fn $name(_err: impl std::error::Error) -> Self {
+            pub fn $name(err: impl std::error::Error) -> Self {
+                println!("{}", err);
                 Self::$err_enum
             }
         }

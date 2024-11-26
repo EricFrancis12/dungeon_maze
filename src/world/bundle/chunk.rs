@@ -2,7 +2,7 @@ use super::{
     super::{chunk_from_xyz_seed, ChunkCellMarker, ChunkMarker, CELL_SIZE, CHUNK_SIZE},
     cell::spawn_cell_bundle,
 };
-use crate::SEED;
+use crate::{world::data::WorldData, SEED};
 
 use bevy::prelude::*;
 
@@ -12,6 +12,7 @@ pub fn spawn_chunk_bundle(
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    world_data: &Res<WorldData>,
 ) {
     let chunk_bundle = (
         SpatialBundle {
@@ -39,7 +40,15 @@ pub fn spawn_chunk_bundle(
                     z,
                 };
 
-                spawn_cell_bundle(cell, ccm, parent, asset_server, meshes, materials);
+                spawn_cell_bundle(
+                    cell,
+                    ccm,
+                    parent,
+                    asset_server,
+                    meshes,
+                    materials,
+                    world_data,
+                );
             }
         }
     });

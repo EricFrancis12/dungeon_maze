@@ -1,7 +1,11 @@
 use crate::{
     error::Error,
     interaction::{Interactable, PendingInteractionExecuted},
-    world::bundle::special::Item,
+    utils::entity::get_n_parent,
+    world::{
+        bundle::special::{Item, TreasureChest},
+        ChunkCellMarker,
+    },
 };
 
 use bevy::prelude::*;
@@ -15,6 +19,7 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
             .add_event::<InventoryChanged>()
+            .add_event::<ItemRemovedFromTreasureChest>()
             .add_systems(Update, pick_up_items);
     }
 }
@@ -37,11 +42,21 @@ impl Inventory {
 #[derive(Event)]
 pub struct InventoryChanged;
 
+#[derive(Event)]
+pub struct ItemRemovedFromTreasureChest {
+    pub ccm: ChunkCellMarker,
+    pub _item: Item,
+    pub _entity: Entity,
+}
+
 fn pick_up_items(
     mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    mut event_writer: EventWriter<InventoryChanged>,
+    mut inv_event_writer: EventWriter<InventoryChanged>,
+    mut irm_event_writer: EventWriter<ItemRemovedFromTreasureChest>,
     item_query: Query<(Entity, &Item), With<Interactable>>,
+    parent_query: Query<&Parent>,
+    treasure_chest_query: Query<&GlobalTransform, With<TreasureChest>>,
     mut inventory: ResMut<Inventory>,
 ) {
     for event in event_reader.read() {
@@ -49,8 +64,18 @@ fn pick_up_items(
             if entity == event.0 {
                 match inventory.try_insert(item) {
                     Ok(_) => {
+                        // Check if item was inside of a treasure chest
+                        let parent_entity = get_n_parent(entity, &parent_query, 1);
+                        if let Ok(gt) = treasure_chest_query.get(parent_entity) {
+                            irm_event_writer.send(ItemRemovedFromTreasureChest {
+                                ccm: ChunkCellMarker::from_global_transform(gt),
+                                _item: item.clone(),
+                                _entity: parent_entity,
+                            });
+                        }
+
                         commands.entity(entity).despawn_recursive();
-                        event_writer.send(InventoryChanged);
+                        inv_event_writer.send(InventoryChanged);
                     }
                     Err(err) => println!("error adding item to inventory: {}", err),
                 }

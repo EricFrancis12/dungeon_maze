@@ -1,4 +1,8 @@
-use crate::{animation::CyclicAnimation, interaction::Interactable};
+use crate::{
+    animation::CyclicAnimation,
+    interaction::Interactable,
+    world::{data::WorldData, ChunkCellMarker},
+};
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
@@ -123,6 +127,8 @@ pub fn spawn_treasure_chest_bundle(
     child_builder: &mut ChildBuilder,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
+    world_data: &Res<WorldData>,
+    ccm: &ChunkCellMarker,
 ) {
     child_builder
         .spawn((
@@ -151,11 +157,21 @@ pub fn spawn_treasure_chest_bundle(
                 Name::new("Treasure Chest Model"),
             ));
 
-            spawn_item_bundle(
+            let item = if let Some(cell_data) = world_data.at_cell(ccm.chunk_xyz(), ccm.cell_xz()) {
+                match &cell_data.treasure_chest_data.item {
+                    Some(i) => i.clone(),
+                    None => return,
+                }
+            } else {
+                // TODO: procedurally generate items spawning in chests:
                 Item {
                     item_type: ItemType::Misc,
                     name: String::from("item"),
-                },
+                }
+            };
+
+            spawn_item_bundle(
+                item,
                 parent,
                 meshes,
                 Some(Transform::from_xyz(0.0, 0.2, 0.0)),

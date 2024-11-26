@@ -3,6 +3,7 @@ use super::{
         chunk::spawn_chunk_bundle,
         special::{Item, TreasureChest},
     },
+    data::WorldData,
     make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest, AssetLib, ChunkMarker,
     CyclicTransform, CELL_SIZE, CHUNK_SIZE,
 };
@@ -35,6 +36,7 @@ pub fn spawn_initial_chunks(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    world_data: Res<WorldData>,
 ) {
     let render_dist = game_settings.chunk_render_dist;
     let chunks = make_nei_chunks_xyz(
@@ -50,6 +52,7 @@ pub fn spawn_initial_chunks(
             &asset_server,
             &mut meshes,
             &mut materials,
+            &world_data,
         );
     }
 }
@@ -119,6 +122,7 @@ pub fn handle_active_chunk_change(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    world_data: Res<WorldData>,
 ) {
     for event in event_reader.read() {
         let chunk_xyz = event.value.to_tuple();
@@ -146,6 +150,7 @@ pub fn handle_active_chunk_change(
                     &asset_server,
                     &mut meshes,
                     &mut materials,
+                    &world_data,
                 );
             }
         }

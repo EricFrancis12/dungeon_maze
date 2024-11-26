@@ -51,12 +51,12 @@ fn main() {
         MenuPlugin,
         PlayerPlugin,
         AnimationPlugin,
-        WorldPlugin,
         InteractionPlugin,
         SettingsPlugin,
         CameraPlugin,
         InventoryPlugin,
         GameSavePlugin,
+        WorldPlugin,
         #[cfg(debug_assertions)]
         DebugPlugin,
     ));
