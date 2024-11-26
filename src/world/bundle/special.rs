@@ -42,26 +42,7 @@ impl Item {
 }
 
 #[derive(Component)]
-pub struct TreasureChest;
-
-impl TreasureChest {
-    pub fn is_open(ca: &CyclicAnimation) -> bool {
-        match ca.value() {
-            TREASURE_CHEST_MAX_ANIMATION => true,
-            _ => false,
-        }
-    }
-
-    fn cyclic_animation() -> CyclicAnimation {
-        CyclicAnimation::new(TREASURE_CHEST_MIN_ANIMATION, TREASURE_CHEST_MAX_ANIMATION)
-    }
-
-    fn interactable() -> Interactable {
-        Interactable {
-            range: TREASURE_CHEST_INTERACTABLE_RANGE,
-        }
-    }
-}
+pub struct ItemOpenClosedContainer;
 
 pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
@@ -132,9 +113,11 @@ pub fn spawn_treasure_chest_bundle(
 ) {
     child_builder
         .spawn((
-            TreasureChest,
-            TreasureChest::cyclic_animation(),
-            TreasureChest::interactable(),
+            ItemOpenClosedContainer,
+            CyclicAnimation::new(TREASURE_CHEST_MIN_ANIMATION, TREASURE_CHEST_MAX_ANIMATION),
+            Interactable {
+                range: TREASURE_CHEST_INTERACTABLE_RANGE,
+            },
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, TREASURE_CHEST_COLLIDER_HY, 0.0),
                 ..default()

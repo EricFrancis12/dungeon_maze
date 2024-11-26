@@ -3,7 +3,7 @@ use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
     utils::entity::get_n_parent,
     world::{
-        bundle::special::{Item, TreasureChest},
+        bundle::special::{Item, ItemOpenClosedContainer},
         ChunkCellMarker,
     },
 };
@@ -56,7 +56,7 @@ fn pick_up_items(
     mut irm_event_writer: EventWriter<ItemRemovedFromTreasureChest>,
     item_query: Query<(Entity, &Item), With<Interactable>>,
     parent_query: Query<&Parent>,
-    treasure_chest_query: Query<&GlobalTransform, With<TreasureChest>>,
+    container_query: Query<&GlobalTransform, With<ItemOpenClosedContainer>>,
     mut inventory: ResMut<Inventory>,
 ) {
     for event in event_reader.read() {
@@ -64,9 +64,9 @@ fn pick_up_items(
             if entity == event.0 {
                 match inventory.try_insert(item) {
                     Ok(_) => {
-                        // Check if item was inside of a treasure chest
+                        // Check if item was inside of a container
                         let parent_entity = get_n_parent(entity, &parent_query, 1);
-                        if let Ok(gt) = treasure_chest_query.get(parent_entity) {
+                        if let Ok(gt) = container_query.get(parent_entity) {
                             irm_event_writer.send(ItemRemovedFromTreasureChest {
                                 ccm: ChunkCellMarker::from_global_transform(gt),
                                 _item: item.clone(),

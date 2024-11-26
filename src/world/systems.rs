@@ -1,14 +1,13 @@
 use super::{
     bundle::{
         chunk::spawn_chunk_bundle,
-        special::{Item, TreasureChest},
+        special::{Item, ItemOpenClosedContainer},
     },
     data::WorldData,
     make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest, AssetLib, ChunkMarker,
     CyclicTransform, CELL_SIZE, CHUNK_SIZE,
 };
 use crate::{
-    animation::CyclicAnimation,
     interaction::{Interactable, PendingInteractionExecuted},
     player::Player,
     settings::GameSettings,
@@ -180,23 +179,21 @@ pub fn handle_cyclic_transform_interactions(
     }
 }
 
-pub fn activate_items_inside_treasure_chests(
+pub fn activate_items_inside_containers(
     mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    treasure_chests_query: Query<(Entity, &CyclicAnimation, &Children), With<TreasureChest>>,
+    containers_query: Query<(Entity, &Children), With<ItemOpenClosedContainer>>,
     interactable_item_query: Query<&Item, With<Interactable>>,
     noninteractable_item_query: Query<&Item, Without<Interactable>>,
 ) {
     for event in event_reader.read() {
-        for (treasure_chest_entity, cyclic_animation, children) in treasure_chests_query.iter() {
+        for (treasure_chest_entity, children) in containers_query.iter() {
             if treasure_chest_entity == event.0 {
-                let is_open = TreasureChest::is_open(cyclic_animation);
-
                 for child in children.iter() {
-                    if noninteractable_item_query.get(*child).is_ok() && is_open {
+                    if noninteractable_item_query.get(*child).is_ok() {
                         // If Interactable component is not present, insert one
                         commands.entity(*child).insert(Item::interactable());
-                    } else if interactable_item_query.get(*child).is_ok() && !is_open {
+                    } else if interactable_item_query.get(*child).is_ok() {
                         // If Interactable component is present, remove it
                         commands.entity(*child).remove::<Interactable>();
                     }

@@ -63,7 +63,7 @@ impl CyclicAnimation {
         }
     }
 
-    pub fn value(&self) -> u32 {
+    fn _value(&self) -> u32 {
         self.counter.value()
     }
 
