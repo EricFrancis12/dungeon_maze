@@ -7,7 +7,10 @@ use crate::{
 use bevy::prelude::*;
 use platform_dirs::AppDirs;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+};
 
 const DATA_DIR_NAME: &str = "backrooms-maze";
 const SAVE_DIR_NAME: &str = "saves";
@@ -28,9 +31,16 @@ pub struct GameSave {
     pub inventory: Inventory,
 }
 
-fn load_save_data(mut next_game_settings: ResMut<NextState<GameSettings>>) {
+#[derive(Default, Deserialize, Serialize)]
+pub struct GameSaveRead {
+    pub game_settings: Option<GameSettings>,
+    pub inventory: Option<Inventory>,
+}
+
+fn load_save_data(mut commands: Commands, mut next_game_settings: ResMut<NextState<GameSettings>>) {
     let game_save = read_game_save().unwrap();
     next_game_settings.set(game_save.game_settings);
+    commands.insert_resource(game_save.inventory);
 }
 
 macro_rules! save_once_and_return {
@@ -46,15 +56,15 @@ macro_rules! save_once_and_return {
 fn save_game_automatically(
     mut gs_event_reader: EventReader<GameSettingsChanged>,
     mut inv_event_reader: EventReader<InventoryChanged>,
-    inventory: Res<Inventory>,
     game_settings: Res<State<GameSettings>>,
+    inventory: Res<Inventory>,
 ) {
     let do_save = || {
         write_game_save(GameSave {
             game_settings: game_settings.clone(),
             inventory: inventory.clone(),
         })
-        .unwrap()
+        .unwrap();
     };
 
     save_once_and_return!(gs_event_reader, do_save);
@@ -69,12 +79,13 @@ fn read_game_save() -> Result<GameSave, Error> {
 
     let file = fs::File::open(save_file_path)?;
 
-    let game_save: GameSave = match serde_json::from_reader(file) {
-        Ok(gs) => gs,
+    match serde_json::from_reader::<File, GameSaveRead>(file) {
+        Ok(g) => Ok(GameSave {
+            game_settings: g.game_settings.unwrap_or_default(),
+            inventory: g.inventory.unwrap_or_default(),
+        }),
         Err(err) => return Err(Error::loading(err)),
-    };
-
-    Ok(game_save)
+    }
 }
 
 fn write_game_save(game_save: GameSave) -> Result<(), Error> {

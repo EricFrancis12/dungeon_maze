@@ -14,7 +14,7 @@ pub struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
-            .add_event::<ItemPickedUp>()
+            .add_event::<InventoryChanged>()
             .add_systems(Update, pick_up_items);
     }
 }
@@ -37,14 +37,10 @@ impl Inventory {
 #[derive(Event)]
 pub struct InventoryChanged;
 
-#[derive(Event)]
-pub struct ItemPickedUp;
-
 fn pick_up_items(
     mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    mut inv_event_writer: EventWriter<InventoryChanged>,
-    mut ipu_event_writer: EventWriter<ItemPickedUp>,
+    mut event_writer: EventWriter<InventoryChanged>,
     item_query: Query<(Entity, &Item), With<Interactable>>,
     mut inventory: ResMut<Inventory>,
 ) {
@@ -54,8 +50,7 @@ fn pick_up_items(
                 match inventory.try_insert(item) {
                     Ok(_) => {
                         commands.entity(entity).despawn_recursive();
-                        inv_event_writer.send(InventoryChanged);
-                        ipu_event_writer.send(ItemPickedUp);
+                        event_writer.send(InventoryChanged);
                     }
                     Err(err) => println!("error adding item to inventory: {}", err),
                 }

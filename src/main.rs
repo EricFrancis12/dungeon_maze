@@ -53,10 +53,10 @@ fn main() {
         AnimationPlugin,
         WorldPlugin,
         InteractionPlugin,
-        GameSavePlugin,
         SettingsPlugin,
         CameraPlugin,
         InventoryPlugin,
+        GameSavePlugin,
         #[cfg(debug_assertions)]
         DebugPlugin,
     ));

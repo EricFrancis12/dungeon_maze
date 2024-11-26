@@ -186,14 +186,13 @@ pub fn activate_items_inside_treasure_chests(
         for (treasure_chest_entity, cyclic_animation, children) in treasure_chests_query.iter() {
             if treasure_chest_entity == event.0 {
                 let is_open = TreasureChest::is_open(cyclic_animation);
-                println!("is_open: {}", is_open);
 
                 for child in children.iter() {
                     if noninteractable_item_query.get(*child).is_ok() && is_open {
-                        println!("adding interactable");
+                        // If Interactable component is not present, insert one
                         commands.entity(*child).insert(Item::interactable());
                     } else if interactable_item_query.get(*child).is_ok() && !is_open {
-                        println!("removing interactable");
+                        // If Interactable component is present, remove it
                         commands.entity(*child).remove::<Interactable>();
                     }
                 }

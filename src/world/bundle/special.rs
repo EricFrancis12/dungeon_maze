@@ -17,8 +17,17 @@ const TREASURE_CHEST_INTERACTABLE_RANGE: f32 = 2.0;
 
 pub const ITEM_INTERACTABLE_RANGE: f32 = 1.8;
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+enum ItemType {
+    Misc,
+    Weapon,
+}
+
 #[derive(Clone, Component, Debug, Deserialize, Serialize)]
-pub struct Item;
+pub struct Item {
+    item_type: ItemType,
+    name: String,
+}
 
 impl Item {
     pub fn interactable() -> Interactable {
@@ -95,7 +104,7 @@ fn spawn_item_bundle(
         item,
         PbrBundle {
             mesh,
-            transform: transform.unwrap_or(Transform::default()),
+            transform: transform.unwrap_or_default(),
             ..default()
         },
         Name::new("Item"),
@@ -143,7 +152,10 @@ pub fn spawn_treasure_chest_bundle(
             ));
 
             spawn_item_bundle(
-                Item,
+                Item {
+                    item_type: ItemType::Misc,
+                    name: String::from("item"),
+                },
                 parent,
                 meshes,
                 Some(Transform::from_xyz(0.0, 0.2, 0.0)),
