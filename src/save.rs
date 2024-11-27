@@ -1,7 +1,7 @@
 use crate::{
     error::Error,
     inventory::{Inventory, InventoryChanged},
-    settings::{GameSettings, GameSettingsChanged},
+    settings::GameSettings,
     world::data::WorldData,
 };
 
@@ -52,36 +52,22 @@ fn load_save_data(mut commands: Commands, mut next_game_settings: ResMut<NextSta
     commands.insert_resource(game_save.world_data);
 }
 
-macro_rules! save_once_and_return {
-    ($event_reader:ident, $do_save:expr) => {
-        for _ in $event_reader.read() {
-            $do_save();
-            $event_reader.clear();
-            return;
-        }
-    };
-}
-
 fn save_game_automatically(
-    mut gs_event_reader: EventReader<GameSettingsChanged>,
-    mut inv_event_reader: EventReader<InventoryChanged>,
-    mut wd_event_reader: EventReader<WorldDataChanged>,
+    gs_event_reader: EventReader<StateTransitionEvent<GameSettings>>,
+    inv_event_reader: EventReader<InventoryChanged>,
+    wd_event_reader: EventReader<WorldDataChanged>,
     game_settings: Res<State<GameSettings>>,
     inventory: Res<Inventory>,
     world_data: Res<WorldData>,
 ) {
-    let do_save = || {
+    if !gs_event_reader.is_empty() || !inv_event_reader.is_empty() || !wd_event_reader.is_empty() {
         write_game_save(GameSave {
             game_settings: game_settings.clone(),
             inventory: inventory.clone(),
             world_data: world_data.clone(),
         })
         .unwrap();
-    };
-
-    save_once_and_return!(gs_event_reader, do_save);
-    save_once_and_return!(inv_event_reader, do_save);
-    save_once_and_return!(wd_event_reader, do_save);
+    }
 }
 
 fn read_game_save() -> Result<GameSave, Error> {

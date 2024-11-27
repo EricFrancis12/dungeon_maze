@@ -31,13 +31,12 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ActiveChunk>()
             .init_resource::<AssetLib>()
-            .add_event::<ActiveChunkChangeRequest>()
             .add_systems(Startup, (preload_assets, spawn_initial_chunks))
             .add_systems(
                 Update,
                 (
                     manage_active_chunk,
-                    handle_active_chunk_change,
+                    update_spawned_chunks,
                     advance_cyclic_transforms,
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                     activate_items_inside_containers.after(advance_cyclic_transforms),
@@ -135,11 +134,6 @@ impl ActiveChunk {
     fn to_tuple(&self) -> (i64, i64, i64) {
         (self.0, self.1, self.2)
     }
-}
-
-#[derive(Event)]
-pub struct ActiveChunkChangeRequest {
-    pub value: ActiveChunk,
 }
 
 #[derive(Component)]

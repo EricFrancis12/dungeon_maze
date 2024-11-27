@@ -4,13 +4,12 @@ use super::{
         special::{Item, OCItemContainer},
     },
     data::WorldData,
-    make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest, AssetLib, ChunkMarker,
-    CyclicTransform, CELL_SIZE, CHUNK_SIZE,
+    make_nei_chunks_xyz, ActiveChunk, AssetLib, ChunkCellMarker, ChunkMarker, CyclicTransform,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
     player::Player,
-    settings::GameSettings,
+    settings::{GameSettings, RenderDistChanged},
 };
 
 use bevy::prelude::*;
@@ -57,78 +56,38 @@ pub fn spawn_initial_chunks(
 }
 
 pub fn manage_active_chunk(
-    mut event_writer: EventWriter<ActiveChunkChangeRequest>,
     player_query: Query<&GlobalTransform, With<Player>>,
     active_chunk: Res<State<ActiveChunk>>,
+    mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
 ) {
-    let player_gl_transform = player_query.get_single().expect("Error retrieving player");
-    let player_gl_translation = player_gl_transform.translation();
+    let gt = player_query.get_single().expect("Error retrieving player");
+    let (x, y, z) = ChunkCellMarker::from_global_transform(gt).chunk_xyz();
 
-    let mut chunk = active_chunk.clone();
-    let half_chunk_size = CHUNK_SIZE / 2.0;
-    let half_cell_size = CELL_SIZE / 2.0;
-
-    // x
-    let x_chunk_size = active_chunk.0 as f32 * CHUNK_SIZE;
-    let x_min_crossed = player_gl_translation.x < x_chunk_size - half_chunk_size;
-    let x_max_crossed = player_gl_translation.x > x_chunk_size + half_chunk_size;
-
-    if x_min_crossed {
-        chunk.0 -= 1;
-    } else if x_max_crossed {
-        chunk.0 += 1;
-    }
-
-    // y
-    let y_chunk_size = active_chunk.1 as f32 * CELL_SIZE;
-    let y_min_crossed = player_gl_translation.y < y_chunk_size - half_cell_size;
-    let y_max_crossed = player_gl_translation.y > y_chunk_size + half_cell_size;
-
-    if y_min_crossed {
-        chunk.1 -= 1;
-    } else if y_max_crossed {
-        chunk.1 += 1;
-    }
-
-    // z
-    let z_chunk_size = active_chunk.2 as f32 * CHUNK_SIZE;
-    let z_min_crossed = player_gl_translation.z < z_chunk_size - half_chunk_size;
-    let z_max_crossed = player_gl_translation.z > z_chunk_size + half_chunk_size;
-
-    if z_min_crossed {
-        chunk.2 -= 1;
-    } else if z_max_crossed {
-        chunk.2 += 1;
-    }
-
-    if x_min_crossed
-        || x_max_crossed
-        || y_min_crossed
-        || y_max_crossed
-        || z_min_crossed
-        || z_max_crossed
-    {
-        event_writer.send(ActiveChunkChangeRequest { value: chunk });
+    if x != active_chunk.0 || y != active_chunk.1 || z != active_chunk.2 {
+        next_active_chunk.set(ActiveChunk(x, y, z));
     }
 }
 
-pub fn handle_active_chunk_change(
+pub fn update_spawned_chunks(
     mut commands: Commands,
-    mut event_reader: EventReader<ActiveChunkChangeRequest>,
+    ac_event_reader: EventReader<StateTransitionEvent<ActiveChunk>>,
+    rd_event_reader: EventReader<RenderDistChanged>,
     chunks_query: Query<(Entity, &ChunkMarker)>,
+    active_chunk: Res<State<ActiveChunk>>,
     game_settings: Res<State<GameSettings>>,
-    mut next_active_chunk: ResMut<NextState<ActiveChunk>>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     world_data: Res<WorldData>,
 ) {
-    for event in event_reader.read() {
-        let chunk_xyz = event.value.to_tuple();
-        next_active_chunk.set(event.value);
-
+    if !ac_event_reader.is_empty() || !rd_event_reader.is_empty() {
         let rend_dist = game_settings.chunk_render_dist;
-        let new_chunks = make_nei_chunks_xyz(chunk_xyz, rend_dist.0, rend_dist.1, rend_dist.2);
+        let new_chunks = make_nei_chunks_xyz(
+            active_chunk.to_tuple(),
+            rend_dist.0,
+            rend_dist.1,
+            rend_dist.2,
+        );
 
         let mut existing_chunks: HashSet<(i64, i64, i64)> = HashSet::new();
 
@@ -153,7 +112,7 @@ pub fn handle_active_chunk_change(
                 );
             }
         }
-    }
+    };
 }
 
 pub fn advance_cyclic_transforms(

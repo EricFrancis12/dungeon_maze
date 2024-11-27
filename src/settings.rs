@@ -5,7 +5,7 @@ pub struct SettingsPlugin;
 
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<GameSettingsChanged>()
+        app.add_event::<RenderDistChanged>()
             .init_state::<GameSettings>();
     }
 }
@@ -16,7 +16,7 @@ pub struct GameSettings {
 }
 
 #[derive(Event)]
-pub struct GameSettingsChanged;
+pub struct RenderDistChanged;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct ChunkRenderDist(pub u32, pub u32, pub u32);
