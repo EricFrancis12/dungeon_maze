@@ -6,8 +6,7 @@ pub struct InteractionPlugin;
 
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<PendingInteractionChanged>()
-            .add_event::<PendingInteractionExecuted>()
+        app.add_event::<PendingInteractionExecuted>()
             .init_state::<PendingInteraction>()
             .add_systems(
                 Update,
@@ -25,13 +24,9 @@ pub struct Interactable {
 struct PendingInteraction(Option<Entity>);
 
 #[derive(Event)]
-struct PendingInteractionChanged;
-
-#[derive(Event)]
 pub struct PendingInteractionExecuted(pub Entity);
 
 fn update_pending_interaction(
-    mut event_writer: EventWriter<PendingInteractionChanged>,
     interactables_query: Query<(Entity, &Interactable, &GlobalTransform)>,
     player_query: Query<&GlobalTransform, With<Player>>,
     pending_interaction: Res<State<PendingInteraction>>,
@@ -58,17 +53,12 @@ fn update_pending_interaction(
     if let Some((entity, _)) = closest_entity {
         next_pending_interaction.set(PendingInteraction(Some(entity)));
 
-        if curr_entity.is_none() || curr_entity.unwrap() != entity {
-            event_writer.send(PendingInteractionChanged);
-        }
-
         return;
     }
 
     // Change back to none if no interactables in range
     if curr_entity.is_some() {
         next_pending_interaction.set(PendingInteraction(None));
-        event_writer.send(PendingInteractionChanged);
     }
 }
 

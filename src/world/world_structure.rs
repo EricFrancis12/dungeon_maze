@@ -34,9 +34,9 @@ impl WorldStructure {
         match self {
             Self::None => 0.0,
             Self::EmptySpace1 => 10.0,
-            Self::FilledWithChairs1 => 5.0,
+            Self::FilledWithChairs1 => 1.0,
             Self::House1 => 0.0,
-            Self::StaircaseTower2 => 10.0,
+            Self::StaircaseTower2 => 5.0,
         }
     }
 

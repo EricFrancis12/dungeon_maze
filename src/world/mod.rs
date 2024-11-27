@@ -111,8 +111,8 @@ impl CellSpecial {
     fn spawn_prob(&self) -> f64 {
         match self {
             Self::None => 0.0,
-            Self::Chair => 0.48,
-            Self::TreasureChest => 0.48,
+            Self::Chair => 0.38,
+            Self::TreasureChest => 0.38,
             Self::Staircase => 0.18,
         }
     }

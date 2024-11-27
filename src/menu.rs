@@ -7,8 +7,7 @@ pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<ActiveMenuTabChanged>()
-            .init_state::<MenuOpen>()
+        app.init_state::<MenuOpen>()
             .init_state::<ActiveMenuTab>()
             .add_systems(Update, toggle_menu_open)
             .add_systems(Update, change_active_menu_tab)
@@ -51,9 +50,6 @@ struct MenuOpen(bool);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveMenuTab(MenuTab);
-
-#[derive(Event)]
-struct ActiveMenuTabChanged;
 
 fn toggle_menu_open(
     keys: Res<ButtonInput<KeyCode>>,
@@ -150,7 +146,6 @@ fn despawn_menu(mut commands: Commands, menu_query: Query<Entity, With<Menu>>) {
 }
 
 fn change_active_menu_tab(
-    mut event_writer: EventWriter<ActiveMenuTabChanged>,
     menu_tab_query: Query<(&MenuTab, &Interaction)>,
     active_menu_tab: Res<State<ActiveMenuTab>>,
     mut next_active_menu_tab: ResMut<NextState<ActiveMenuTab>>,
@@ -159,7 +154,6 @@ fn change_active_menu_tab(
         if *interaction == Interaction::Pressed {
             if *menu_tab != active_menu_tab.get().0 {
                 next_active_menu_tab.set(ActiveMenuTab(menu_tab.clone()));
-                event_writer.send(ActiveMenuTabChanged);
                 break;
             }
         }
@@ -168,21 +162,21 @@ fn change_active_menu_tab(
 
 fn spawn_menu_content_on_tab_change(
     mut commands: Commands,
-    mut event_reader: EventReader<ActiveMenuTabChanged>,
+    mut event_reader: EventReader<StateTransitionEvent<ActiveMenuTab>>,
     menu_content_query: Query<Entity, With<MenuContent>>,
     active_menu_tab: Res<State<ActiveMenuTab>>,
     game_settings: Res<State<GameSettings>>,
 ) {
     for _ in event_reader.read() {
-        let entity = menu_content_query.get_single().unwrap();
+        if let Ok(entity) = menu_content_query.get_single() {
+            let mut entity_commands = commands.entity(entity);
+            entity_commands.despawn_descendants();
 
-        let mut entity_commands = commands.entity(entity);
-        entity_commands.despawn_descendants();
-
-        entity_commands.with_children(|parent| match active_menu_tab.get().0 {
-            MenuTab::Inventory => spawn_inventory_menu_content(parent),
-            MenuTab::Settings => spawn_settings_menu_content(parent, &game_settings),
-        });
+            entity_commands.with_children(|parent| match active_menu_tab.get().0 {
+                MenuTab::Inventory => spawn_inventory_menu_content(parent),
+                MenuTab::Settings => spawn_settings_menu_content(parent, &game_settings),
+            });
+        }
     }
 }
 
@@ -297,7 +291,7 @@ fn spawn_settings_menu_content(
 }
 
 fn change_menu_tabs_background_color(
-    mut event_reader: EventReader<ActiveMenuTabChanged>,
+    mut event_reader: EventReader<StateTransitionEvent<ActiveMenuTab>>,
     mut menu_tab_query: Query<(&MenuTab, &mut BackgroundColor)>,
     active_menu_tab: Res<State<ActiveMenuTab>>,
 ) {
