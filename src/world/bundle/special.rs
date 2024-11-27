@@ -42,7 +42,7 @@ impl Item {
 }
 
 #[derive(Component)]
-pub struct ItemOpenClosedContainer;
+pub struct OCItemContainer;
 
 pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
     child_builder
@@ -113,7 +113,7 @@ pub fn spawn_treasure_chest_bundle(
 ) {
     child_builder
         .spawn((
-            ItemOpenClosedContainer,
+            OCItemContainer,
             CyclicAnimation::new(TREASURE_CHEST_MIN_ANIMATION, TREASURE_CHEST_MAX_ANIMATION),
             Interactable {
                 range: TREASURE_CHEST_INTERACTABLE_RANGE,

@@ -3,7 +3,7 @@ use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
     utils::entity::get_n_parent,
     world::{
-        bundle::special::{Item, ItemOpenClosedContainer},
+        bundle::special::{Item, OCItemContainer},
         ChunkCellMarker,
     },
 };
@@ -19,7 +19,7 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
             .add_event::<InventoryChanged>()
-            .add_event::<ItemRemovedFromTreasureChest>()
+            .add_event::<ItemRemovedFromOCItemContainer>()
             .add_systems(Update, pick_up_items);
     }
 }
@@ -43,7 +43,7 @@ impl Inventory {
 pub struct InventoryChanged;
 
 #[derive(Event)]
-pub struct ItemRemovedFromTreasureChest {
+pub struct ItemRemovedFromOCItemContainer {
     pub ccm: ChunkCellMarker,
     pub _item: Item,
     pub _entity: Entity,
@@ -53,10 +53,10 @@ fn pick_up_items(
     mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
     mut inv_event_writer: EventWriter<InventoryChanged>,
-    mut irm_event_writer: EventWriter<ItemRemovedFromTreasureChest>,
+    mut irm_event_writer: EventWriter<ItemRemovedFromOCItemContainer>,
     item_query: Query<(Entity, &Item), With<Interactable>>,
     parent_query: Query<&Parent>,
-    container_query: Query<&GlobalTransform, With<ItemOpenClosedContainer>>,
+    container_query: Query<&GlobalTransform, With<OCItemContainer>>,
     mut inventory: ResMut<Inventory>,
 ) {
     for event in event_reader.read() {
@@ -67,7 +67,7 @@ fn pick_up_items(
                         // Check if item was inside of a container
                         let parent_entity = get_n_parent(entity, &parent_query, 1);
                         if let Ok(gt) = container_query.get(parent_entity) {
-                            irm_event_writer.send(ItemRemovedFromTreasureChest {
+                            irm_event_writer.send(ItemRemovedFromOCItemContainer {
                                 ccm: ChunkCellMarker::from_global_transform(gt),
                                 _item: item.clone(),
                                 _entity: parent_entity,

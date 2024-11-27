@@ -1,7 +1,7 @@
 use super::{
     bundle::{
         chunk::spawn_chunk_bundle,
-        special::{Item, ItemOpenClosedContainer},
+        special::{Item, OCItemContainer},
     },
     data::WorldData,
     make_nei_chunks_xyz, ActiveChunk, ActiveChunkChangeRequest, AssetLib, ChunkMarker,
@@ -182,7 +182,7 @@ pub fn handle_cyclic_transform_interactions(
 pub fn activate_items_inside_containers(
     mut commands: Commands,
     mut event_reader: EventReader<PendingInteractionExecuted>,
-    containers_query: Query<(Entity, &Children), With<ItemOpenClosedContainer>>,
+    containers_query: Query<(Entity, &Children), With<OCItemContainer>>,
     interactable_item_query: Query<&Item, With<Interactable>>,
     noninteractable_item_query: Query<&Item, Without<Interactable>>,
 ) {

@@ -1,5 +1,5 @@
 use super::bundle::special::Item;
-use crate::{inventory::ItemRemovedFromTreasureChest, save::WorldDataChanged};
+use crate::{inventory::ItemRemovedFromOCItemContainer, save::WorldDataChanged};
 
 use bevy::prelude::*;
 use serde::{
@@ -200,9 +200,9 @@ pub struct TreasureChestData {
     pub item: Option<Item>,
 }
 
-pub fn update_world_data_treasure_chests(
+pub fn remove_item_from_oc_item_containers(
     mut commands: Commands,
-    mut event_reader: EventReader<ItemRemovedFromTreasureChest>,
+    mut event_reader: EventReader<ItemRemovedFromOCItemContainer>,
     mut event_writer: EventWriter<WorldDataChanged>,
     world_data: ResMut<WorldData>,
 ) {

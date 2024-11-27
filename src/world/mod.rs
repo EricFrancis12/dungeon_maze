@@ -8,7 +8,7 @@ use crate::utils::{
     rng::{rng_from_str, rng_from_xyz_seed},
     CyclicCounter,
 };
-use data::update_world_data_treasure_chests;
+use data::remove_item_from_oc_item_containers;
 use systems::*;
 
 use bevy::prelude::*;
@@ -41,7 +41,7 @@ impl Plugin for WorldPlugin {
                     advance_cyclic_transforms,
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                     activate_items_inside_containers.after(advance_cyclic_transforms),
-                    update_world_data_treasure_chests,
+                    remove_item_from_oc_item_containers,
                 ),
             );
     }
