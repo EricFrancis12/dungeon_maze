@@ -32,6 +32,15 @@ fn spawn_camera(mut commands: Commands) {
             },
             ..default()
         },
+        FogSettings {
+            color: Color::srgba_u8(42, 41, 41, 255),
+            directional_light_exponent: 7.8,
+            falloff: FogFalloff::Linear {
+                start: 10.0,
+                end: 21.0,
+            },
+            ..default()
+        },
         Name::new("Camera"),
     );
 
