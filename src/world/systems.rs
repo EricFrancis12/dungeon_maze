@@ -1,13 +1,11 @@
 use super::{
-    bundle::{
-        chunk::spawn_chunk_bundle,
-        special::{Item, OCItemContainer},
-    },
+    bundle::{chunk::spawn_chunk_bundle, special::OCItemContainer},
     data::WorldData,
     make_nei_chunks_xyz, ActiveChunk, AssetLib, ChunkCellMarker, ChunkMarker, CyclicTransform,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
+    inventory::Item,
     player::Player,
     settings::{GameSettings, RenderDistChanged},
 };

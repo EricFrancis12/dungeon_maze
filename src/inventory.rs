@@ -2,15 +2,13 @@ use crate::{
     error::Error,
     interaction::{Interactable, PendingInteractionExecuted},
     utils::entity::get_n_parent,
-    world::{
-        bundle::special::{Item, OCItemContainer},
-        ChunkCellMarker,
-    },
+    world::{bundle::special::OCItemContainer, ChunkCellMarker},
 };
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+const ITEM_INTERACTABLE_RANGE: f32 = 1.8;
 const INVENTORY_MAX_SIZE: usize = 16;
 
 pub struct InventoryPlugin;
@@ -24,8 +22,28 @@ impl Plugin for InventoryPlugin {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ItemType {
+    Misc,
+    Weapon,
+}
+
+#[derive(Clone, Component, Debug, Deserialize, Serialize)]
+pub struct Item {
+    pub item_type: ItemType,
+    pub name: String,
+}
+
+impl Item {
+    pub fn interactable() -> Interactable {
+        Interactable {
+            range: ITEM_INTERACTABLE_RANGE,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Resource, Serialize)]
-pub struct Inventory([Option<Item>; INVENTORY_MAX_SIZE]);
+pub struct Inventory(pub [Option<Item>; INVENTORY_MAX_SIZE]);
 
 impl Inventory {
     fn try_insert(&mut self, item: &Item) -> Result<(), Error> {

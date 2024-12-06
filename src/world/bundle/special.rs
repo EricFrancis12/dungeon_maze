@@ -1,12 +1,12 @@
 use crate::{
     animation::CyclicAnimation,
     interaction::Interactable,
+    inventory::{Item, ItemType},
     world::{data::WorldData, ChunkCellMarker},
 };
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
-use serde::{Deserialize, Serialize};
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -18,28 +18,6 @@ const TREASURE_CHEST_COLLIDER_HZ: f32 = 0.3;
 const TREASURE_CHEST_MIN_ANIMATION: u32 = 3;
 const TREASURE_CHEST_MAX_ANIMATION: u32 = 4;
 const TREASURE_CHEST_INTERACTABLE_RANGE: f32 = 2.0;
-
-pub const ITEM_INTERACTABLE_RANGE: f32 = 1.8;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-enum ItemType {
-    Misc,
-    Weapon,
-}
-
-#[derive(Clone, Component, Debug, Deserialize, Serialize)]
-pub struct Item {
-    item_type: ItemType,
-    name: String,
-}
-
-impl Item {
-    pub fn interactable() -> Interactable {
-        Interactable {
-            range: ITEM_INTERACTABLE_RANGE,
-        }
-    }
-}
 
 #[derive(Component)]
 pub struct OCItemContainer;

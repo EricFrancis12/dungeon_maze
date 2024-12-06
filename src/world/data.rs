@@ -1,5 +1,7 @@
-use super::bundle::special::Item;
-use crate::{inventory::ItemRemovedFromOCItemContainer, save::WorldDataChanged};
+use crate::{
+    inventory::{Item, ItemRemovedFromOCItemContainer},
+    save::WorldDataChanged,
+};
 
 use bevy::prelude::*;
 use serde::{

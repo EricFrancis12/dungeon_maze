@@ -1,4 +1,7 @@
-use crate::settings::{ChunkRenderDist, GameSettings, RenderDistChanged};
+use crate::{
+    inventory::Inventory,
+    settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
+};
 
 use bevy::prelude::*;
 use std::fmt::{Formatter, Result};
@@ -11,7 +14,7 @@ impl Plugin for MenuPlugin {
             .init_state::<ActiveMenuTab>()
             .add_systems(Update, toggle_menu_open)
             .add_systems(Update, change_active_menu_tab)
-            .add_systems(Update, spawn_menu_content_on_tab_change)
+            .add_systems(Update, manage_menu_content)
             .add_systems(Update, change_menu_tabs_background_color)
             .add_systems(Update, change_render_dist)
             .add_systems(Update, change_render_dist_buttons_background_color)
@@ -63,6 +66,7 @@ fn toggle_menu_open(
 
 fn spawn_menu(
     mut commands: Commands,
+    inventory: Res<Inventory>,
     active_menu_tab: Res<State<ActiveMenuTab>>,
     game_settings: Res<State<GameSettings>>,
 ) {
@@ -103,7 +107,7 @@ fn spawn_menu(
                     MenuContent,
                 ))
                 .with_children(|grandparent| match active_menu_tab.get().0 {
-                    MenuTab::Inventory => spawn_inventory_menu_content(grandparent),
+                    MenuTab::Inventory => spawn_inventory_menu_content(grandparent, &inventory),
                     MenuTab::Settings => spawn_settings_menu_content(grandparent, &game_settings),
                 });
 
@@ -160,10 +164,11 @@ fn change_active_menu_tab(
     }
 }
 
-fn spawn_menu_content_on_tab_change(
+fn manage_menu_content(
     mut commands: Commands,
     mut event_reader: EventReader<StateTransitionEvent<ActiveMenuTab>>,
     menu_content_query: Query<Entity, With<MenuContent>>,
+    inventory: Res<Inventory>,
     active_menu_tab: Res<State<ActiveMenuTab>>,
     game_settings: Res<State<GameSettings>>,
 ) {
@@ -173,20 +178,21 @@ fn spawn_menu_content_on_tab_change(
             entity_commands.despawn_descendants();
 
             entity_commands.with_children(|parent| match active_menu_tab.get().0 {
-                MenuTab::Inventory => spawn_inventory_menu_content(parent),
+                MenuTab::Inventory => spawn_inventory_menu_content(parent, &inventory),
                 MenuTab::Settings => spawn_settings_menu_content(parent, &game_settings),
             });
         }
     }
 }
 
-fn spawn_inventory_menu_content(child_builder: &mut ChildBuilder) {
+fn spawn_inventory_menu_content(child_builder: &mut ChildBuilder, inventory: &Res<Inventory>) {
     child_builder.spawn(TextBundle {
         text: Text {
             sections: vec![TextSection::new(
                 "Inventory",
                 TextStyle {
                     font_size: 20.0,
+                    color: Color::WHITE,
                     ..default()
                 },
             )],
@@ -194,6 +200,38 @@ fn spawn_inventory_menu_content(child_builder: &mut ChildBuilder) {
         },
         ..default()
     });
+
+    // Create the grid container
+    child_builder
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                flex_wrap: FlexWrap::Wrap,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                padding: UiRect::all(Val::Px(10.0)),
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            for item in inventory.0.iter() {
+                parent.spawn(NodeBundle {
+                    style: Style {
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        height: Val::Px(50.0),
+                        width: Val::Px(50.0),
+                        margin: UiRect::all(Val::Px(5.0)),
+                        border: UiRect::all(Val::Px(2.0)),
+                        ..default()
+                    },
+                    border_color: Color::WHITE.into(),
+                    ..default()
+                });
+            }
+        });
 }
 
 fn spawn_settings_menu_content(
