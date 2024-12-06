@@ -10,9 +10,6 @@ pub enum Error {
 
     #[error("error occurred while loading")]
     Loading,
-
-    #[error("error attempting to add item(s) to a full inventory")]
-    InventoryOverflow,
 }
 
 macro_rules! error_impl {

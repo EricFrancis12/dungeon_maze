@@ -181,6 +181,13 @@ impl ChunkCellMarker {
         }
     }
 
+    pub fn to_rng(&self) -> StdRng {
+        rng_from_str(format!(
+            "{},{},{}_{},{}",
+            self.chunk_x, self.chunk_y, self.chunk_z, self.x, self.z
+        ))
+    }
+
     pub fn chunk_xyz(&self) -> (i64, i64, i64) {
         (self.chunk_x, self.chunk_y, self.chunk_z)
     }

@@ -46,7 +46,7 @@ pub struct GameSaveRead {
 pub struct WorldDataChanged;
 
 fn load_save_data(mut commands: Commands, mut next_game_settings: ResMut<NextState<GameSettings>>) {
-    let game_save = read_game_save().unwrap();
+    let game_save = read_game_save().unwrap_or_default();
     next_game_settings.set(game_save.game_settings);
     commands.insert_resource(game_save.inventory);
     commands.insert_resource(game_save.world_data);

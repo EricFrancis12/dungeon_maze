@@ -1,12 +1,13 @@
 use crate::{
     animation::CyclicAnimation,
     interaction::Interactable,
-    inventory::{Item, ItemType},
+    inventory::Item,
     world::{data::WorldData, ChunkCellMarker},
 };
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
+use rand::Rng;
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
@@ -124,11 +125,9 @@ pub fn spawn_treasure_chest_bundle(
                     None => return,
                 }
             } else {
-                // TODO: procedurally generate items spawning in chests:
-                Item {
-                    item_type: ItemType::Misc,
-                    name: String::from("item"),
-                }
+                let mut rng = ccm.to_rng();
+                let amt = rng.gen_range(1..=3);
+                Item::choose(&mut rng, amt)
             };
 
             spawn_item_bundle(
