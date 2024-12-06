@@ -4,7 +4,7 @@ use crate::{
     utils::entity::get_n_parent,
 };
 
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::RelativeCursorPosition};
 use std::fmt::{Formatter, Result};
 
 pub struct MenuPlugin;
@@ -13,6 +13,7 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<MenuOpen>()
             .init_state::<ActiveMenuTab>()
+            .init_state::<DraggingInventorySlot>()
             .add_systems(
                 Update,
                 (
@@ -24,9 +25,10 @@ impl Plugin for MenuPlugin {
                     change_render_dist,
                     change_render_dist_buttons_background_color,
                     update_visibility_on_parent_hover,
+                    start_drag_inventory_item,
+                    stop_drag_inventory_item,
                 ),
             )
-            // TODO: merge systems:
             .add_systems(OnEnter(MenuOpen(true)), spawn_menu)
             .add_systems(OnExit(MenuOpen(true)), despawn_menu);
     }
@@ -63,8 +65,11 @@ struct MenuOpen(bool);
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveMenuTab(MenuTab);
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+struct DraggingInventorySlot(Option<usize>);
+
 #[derive(Component)]
-struct InventorySlot;
+struct InventorySlot(usize);
 
 #[derive(Component)]
 struct VisibleOnParentHover {
@@ -272,7 +277,8 @@ fn spawn_inventory_menu_content(
         .with_children(|parent| {
             for (i, slot) in inventory.0.iter().enumerate() {
                 let mut entity_commands = parent.spawn((
-                    InventorySlot,
+                    InventorySlot(i),
+                    RelativeCursorPosition::default(),
                     ButtonBundle {
                         style: Style {
                             position_type: PositionType::Relative,
@@ -523,5 +529,45 @@ fn update_visibility_on_parent_hover(
                 *visibility = voh.not_hovered;
             }
         }
+    }
+}
+
+fn start_drag_inventory_item(
+    inventory_slot_query: Query<(&InventorySlot, &Interaction)>,
+    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
+    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+) {
+    for (slot, interaction) in inventory_slot_query.iter() {
+        if *interaction == Interaction::Pressed && dragging_inventory_slot.get().0.is_none() {
+            next_dragging_inventory_slot.set(DraggingInventorySlot(Some(slot.0)));
+            break;
+        }
+    }
+}
+
+fn stop_drag_inventory_item(
+    mut event_writer: EventWriter<InventoryChanged>,
+    inventory_slot_query: Query<(&InventorySlot, &RelativeCursorPosition)>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut inventory: ResMut<Inventory>,
+    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
+    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+) {
+    if mouse.just_released(MouseButton::Left) {
+        if let Some(i) = dragging_inventory_slot.get().0 {
+            if inventory.0.get(i).is_none() {
+                panic!("expected inventory item at index {}", i);
+            }
+
+            for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
+                if rel_cursor_position.mouse_over() {
+                    inventory.0.swap(i, inventory_slot.0);
+                    event_writer.send(InventoryChanged);
+                    break;
+                }
+            }
+        }
+
+        next_dragging_inventory_slot.set(DraggingInventorySlot(None));
     }
 }
