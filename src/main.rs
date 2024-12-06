@@ -31,6 +31,7 @@ use debug::DebugPlugin;
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
+use bevy_text_popup::TextPopupPlugin;
 
 pub const SEED: u32 = 1234;
 
@@ -48,6 +49,7 @@ fn main() {
     app.add_plugins((
         DefaultPlugins,
         RapierPhysicsPlugin::<NoUserData>::default(),
+        TextPopupPlugin,
         MenuPlugin,
         PlayerPlugin,
         AnimationPlugin,

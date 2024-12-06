@@ -5,6 +5,7 @@ use crate::{
 };
 
 use bevy::prelude::*;
+use bevy_text_popup::{TextPopupEvent, TextPopupLocation, TextPopupTimeout};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -172,6 +173,7 @@ fn pick_up_items(
     mut event_reader: EventReader<PendingInteractionExecuted>,
     mut inv_event_writer: EventWriter<InventoryChanged>,
     mut irm_event_writer: EventWriter<ItemRemovedFromOCItemContainer>,
+    mut popup_event_writer: EventWriter<TextPopupEvent>,
     mut item_query: Query<(Entity, &mut Item), With<Interactable>>,
     parent_query: Query<&Parent>,
     container_query: Query<&GlobalTransform, With<OCItemContainer>>,
@@ -180,6 +182,7 @@ fn pick_up_items(
     for event in event_reader.read() {
         for (entity, mut item) in item_query.iter_mut() {
             if entity == event.0 {
+                // TODO: Handle case where inventory is full
                 match inventory.insert(item.clone()) {
                     Some(rem_item) => *item = rem_item,
                     None => {
@@ -194,9 +197,20 @@ fn pick_up_items(
                         }
 
                         commands.entity(entity).despawn_recursive();
-                        inv_event_writer.send(InventoryChanged);
                     }
                 }
+
+                inv_event_writer.send(InventoryChanged);
+
+                popup_event_writer.send(TextPopupEvent {
+                    content: format!("Picked up ({}) {}", item.amt, item.name),
+                    location: TextPopupLocation::BottomLeft,
+                    timeout: TextPopupTimeout::Seconds(4),
+                    ..default()
+                });
+
+                item.amt = 0;
+
                 break;
             }
         }

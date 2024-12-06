@@ -1,6 +1,7 @@
 use crate::{
     inventory::{Inventory, InventoryChanged},
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
+    utils::entity::get_n_parent,
 };
 
 use bevy::prelude::*;
@@ -12,13 +13,20 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<MenuOpen>()
             .init_state::<ActiveMenuTab>()
-            .add_systems(Update, toggle_menu_open)
-            .add_systems(Update, change_active_menu_tab)
-            .add_systems(Update, manage_menu_content)
-            .add_systems(Update, update_inventory_menu_content)
-            .add_systems(Update, change_menu_tabs_background_color)
-            .add_systems(Update, change_render_dist)
-            .add_systems(Update, change_render_dist_buttons_background_color)
+            .add_systems(
+                Update,
+                (
+                    toggle_menu_open,
+                    change_active_menu_tab,
+                    manage_menu_content,
+                    update_inventory_menu_content,
+                    change_menu_tabs_background_color,
+                    change_render_dist,
+                    change_render_dist_buttons_background_color,
+                    update_visibility_on_parent_hover,
+                ),
+            )
+            // TODO: merge systems:
             .add_systems(OnEnter(MenuOpen(true)), spawn_menu)
             .add_systems(OnExit(MenuOpen(true)), despawn_menu);
     }
@@ -54,6 +62,24 @@ struct MenuOpen(bool);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveMenuTab(MenuTab);
+
+#[derive(Component)]
+struct InventorySlot;
+
+#[derive(Component)]
+struct VisibleOnParentHover {
+    hovered: Visibility,
+    not_hovered: Visibility,
+}
+
+impl Default for VisibleOnParentHover {
+    fn default() -> Self {
+        Self {
+            hovered: Visibility::Visible,
+            not_hovered: Visibility::Hidden,
+        }
+    }
+}
 
 fn toggle_menu_open(
     keys: Res<ButtonInput<KeyCode>>,
@@ -244,22 +270,26 @@ fn spawn_inventory_menu_content(
             ..default()
         })
         .with_children(|parent| {
-            for slot in inventory.0.iter() {
-                let mut entity_commands = parent.spawn(NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Relative,
-                        display: Display::Flex,
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        height: Val::Px(50.0),
-                        width: Val::Px(50.0),
-                        margin: UiRect::all(Val::Px(5.0)),
-                        border: UiRect::all(Val::Px(2.0)),
+            for (i, slot) in inventory.0.iter().enumerate() {
+                let mut entity_commands = parent.spawn((
+                    InventorySlot,
+                    ButtonBundle {
+                        style: Style {
+                            position_type: PositionType::Relative,
+                            display: Display::Flex,
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            height: Val::Px(50.0),
+                            width: Val::Px(50.0),
+                            margin: UiRect::all(Val::Px(5.0)),
+                            border: UiRect::all(Val::Px(2.0)),
+                            ..default()
+                        },
+                        border_color: Color::WHITE.into(),
                         ..default()
                     },
-                    border_color: Color::WHITE.into(),
-                    ..default()
-                });
+                    Name::new(format!("Inventory Slot {}", i)),
+                ));
 
                 if let Some(item) = slot {
                     entity_commands.with_children(|grandparent| {
@@ -273,6 +303,33 @@ fn spawn_inventory_menu_content(
                             ..default()
                         });
 
+                        grandparent.spawn((
+                            VisibleOnParentHover::default(),
+                            TextBundle {
+                                visibility: Visibility::Hidden,
+                                text: Text {
+                                    sections: vec![TextSection::new(
+                                        item.name.to_string(),
+                                        TextStyle {
+                                            font_size: 22.0,
+                                            color: Color::WHITE,
+                                            ..default()
+                                        },
+                                    )],
+                                    ..default()
+                                },
+                                style: Style {
+                                    position_type: PositionType::Absolute,
+                                    top: Val::Percent(100.0),
+                                    right: Val::Percent(0.0),
+                                    ..default()
+                                },
+                                background_color: Color::BLACK.into(),
+                                z_index: ZIndex::Global(10),
+                                ..default()
+                            },
+                        ));
+
                         if item.amt > 1 {
                             grandparent.spawn(TextBundle {
                                 text: Text {
@@ -280,7 +337,7 @@ fn spawn_inventory_menu_content(
                                         item.amt.to_string(),
                                         TextStyle {
                                             font_size: 22.0,
-                                            color: Color::srgb_u8(160, 160, 160),
+                                            color: Color::WHITE,
                                             ..default()
                                         },
                                     )],
@@ -448,6 +505,22 @@ fn change_render_dist_buttons_background_color(
                 *background_color = Color::linear_rgba(0.0, 0.0, 0.4, 1.0).into();
             } else {
                 *background_color = Color::WHITE.into();
+            }
+        }
+    }
+}
+
+fn update_visibility_on_parent_hover(
+    mut visibility_query: Query<(Entity, &mut Visibility, &VisibleOnParentHover)>,
+    interaction_query: Query<&Interaction>,
+    parent_query: Query<&Parent>,
+) {
+    for (entity, mut visibility, voh) in visibility_query.iter_mut() {
+        if let Ok(interaction) = interaction_query.get(get_n_parent(entity, &parent_query, 1)) {
+            if *interaction == Interaction::Hovered && *visibility != voh.hovered {
+                *visibility = voh.hovered;
+            } else if *interaction == Interaction::None && *visibility != voh.not_hovered {
+                *visibility = voh.not_hovered;
             }
         }
     }
