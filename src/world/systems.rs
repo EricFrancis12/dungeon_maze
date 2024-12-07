@@ -179,6 +179,7 @@ pub fn spawn_dropped_item(
             )),
             true,
             true,
+            true,
         );
         break;
     }

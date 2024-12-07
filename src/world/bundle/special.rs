@@ -106,6 +106,7 @@ pub fn spawn_treasure_chest_bundle(
                 Some(Transform::from_xyz(0.0, 0.2, 0.0)),
                 false,
                 false,
+                false,
             );
         });
 }

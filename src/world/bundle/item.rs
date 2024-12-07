@@ -1,7 +1,7 @@
 use crate::inventory::Item;
 
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::Collider;
+use bevy_rapier3d::prelude::*;
 
 use super::EntitySpawner;
 
@@ -12,6 +12,7 @@ pub fn spawn_item_bundle(
     transform: Option<Transform>,
     interactable: bool,
     collider: bool,
+    rigid_body: bool,
 ) {
     let mesh = meshes.add(
         Cuboid::from_size(Vec3 {
@@ -35,8 +36,10 @@ pub fn spawn_item_bundle(
     if interactable {
         entity_commands.insert(Item::interactable());
     }
-
     if collider {
         entity_commands.insert(Collider::cuboid(0.1, 0.1, 0.1));
+    }
+    if rigid_body {
+        entity_commands.insert(RigidBody::Dynamic);
     }
 }
