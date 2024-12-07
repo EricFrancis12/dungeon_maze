@@ -1,6 +1,7 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
     menu::{DraggingInventorySlot, Menu},
+    should_not_happen,
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
 };
@@ -99,7 +100,12 @@ impl Item {
         self.name.max_amt()
     }
 
-    fn merge(&mut self, item: Item) -> Option<Item> {
+    pub fn merge(&mut self, item: Item) -> Option<Item> {
+        if self.name != item.name {
+            should_not_happen!("attempting to merge 2 items with different ItemNames");
+            return Some(item);
+        }
+
         let total = self.amt.wrapping_add(item.amt);
         let ma = self.max_amt();
 
@@ -187,9 +193,22 @@ fn pick_up_items(
     for event in event_reader.read() {
         for (entity, mut item) in item_query.iter_mut() {
             if entity == event.0 {
-                // TODO: Handle case where inventory is full
+                let content = format!("Picked up ({}) {}", item.amt, item.name);
+                let send_events = || {
+                    inv_event_writer.send(InventoryChanged);
+                    popup_event_writer.send(TextPopupEvent {
+                        content,
+                        location: TextPopupLocation::BottomLeft,
+                        timeout: TextPopupTimeout::Seconds(4),
+                        ..default()
+                    });
+                };
+
                 match inventory.insert(item.clone()) {
-                    Some(rem_item) => *item = rem_item,
+                    Some(rem_item) => {
+                        *item = rem_item;
+                        send_events();
+                    }
                     None => {
                         // Check if item was inside of a container
                         let parent_entity = get_n_parent(entity, &parent_query, 1);
@@ -201,20 +220,12 @@ fn pick_up_items(
                             });
                         }
 
+                        item.amt = 0;
+                        send_events();
+
                         commands.entity(entity).despawn_recursive();
                     }
                 }
-
-                inv_event_writer.send(InventoryChanged);
-
-                popup_event_writer.send(TextPopupEvent {
-                    content: format!("Picked up ({}) {}", item.amt, item.name),
-                    location: TextPopupLocation::BottomLeft,
-                    timeout: TextPopupTimeout::Seconds(4),
-                    ..default()
-                });
-
-                item.amt = 0;
 
                 break;
             }

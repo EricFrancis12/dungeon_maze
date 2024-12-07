@@ -568,14 +568,25 @@ fn stop_drag_inventory_item(
 ) {
     if mouse.just_released(MouseButton::Left) {
         if let Some(i) = dragging_inventory_slot.get().0 {
-            if inventory.0.get(i).is_none() {
-                panic!("expected inventory item at index {}", i);
-            }
-
             for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
                 if rel_cursor_position.mouse_over() {
-                    inventory.0.swap(i, inventory_slot.0);
                     event_writer.send(InventoryChanged);
+
+                    // Check if the two stacks have the same ItemName, and if so merge them.
+                    let slot_clone = inventory.0[i].as_ref().cloned();
+
+                    match (&slot_clone, &mut inventory.0[inventory_slot.0]) {
+                        (Some(item_a), Some(item_b)) => {
+                            if item_a.name == item_b.name {
+                                let rem_items = item_b.merge(item_a.clone());
+                                inventory.0[i] = rem_items.to_owned();
+                                break;
+                            }
+                        }
+                        _ => (),
+                    };
+
+                    inventory.0.swap(i, inventory_slot.0);
                     break;
                 }
             }

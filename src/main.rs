@@ -13,6 +13,8 @@ mod world;
 
 #[cfg(test)]
 mod chunk_test;
+#[cfg(test)]
+mod inventory_test;
 
 #[cfg(debug_assertions)]
 mod debug;
