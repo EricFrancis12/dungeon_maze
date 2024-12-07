@@ -1,4 +1,4 @@
-use super::WALL_THICKNESS;
+use super::{EntitySpawner, WALL_THICKNESS};
 use crate::{
     interaction::Interactable,
     utils::entity::incr_betw_transforms,
@@ -19,7 +19,7 @@ const DOOR_SCALE: Vec3 = Vec3 {
 
 pub fn spawn_door_bundle(
     side: Side,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
 ) {
     let (sx, sy, sz, sr, ex, ey, ez, er) = match side {
@@ -41,7 +41,7 @@ pub fn spawn_door_bundle(
     let mut clone = transforms.clone();
     clone.reverse();
 
-    child_builder.spawn((
+    entity_spawner.spawn((
         SceneBundle {
             scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
             transform: transforms[0],

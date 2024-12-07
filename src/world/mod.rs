@@ -41,6 +41,7 @@ impl Plugin for WorldPlugin {
                     handle_cyclic_transform_interactions.after(advance_cyclic_transforms),
                     activate_items_inside_containers.after(advance_cyclic_transforms),
                     remove_item_from_oc_item_containers,
+                    spawn_dropped_item,
                 ),
             );
     }

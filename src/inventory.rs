@@ -1,10 +1,11 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
+    menu::{DraggingInventorySlot, Menu},
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
 };
 
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::RelativeCursorPosition};
 use bevy_text_popup::{TextPopupEvent, TextPopupLocation, TextPopupTimeout};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -20,8 +21,9 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
             .add_event::<InventoryChanged>()
+            .add_event::<PlayerDroppedItem>()
             .add_event::<ItemRemovedFromOCItemContainer>()
-            .add_systems(Update, pick_up_items);
+            .add_systems(Update, (pick_up_items, drop_dragged_item));
     }
 }
 
@@ -162,6 +164,9 @@ impl Inventory {
 pub struct InventoryChanged;
 
 #[derive(Event)]
+pub struct PlayerDroppedItem(pub Item);
+
+#[derive(Event)]
 pub struct ItemRemovedFromOCItemContainer {
     pub ccm: ChunkCellMarker,
     pub _item: Item,
@@ -214,5 +219,33 @@ fn pick_up_items(
                 break;
             }
         }
+    }
+}
+
+fn drop_dragged_item(
+    mut event_reader: EventReader<StateTransitionEvent<DraggingInventorySlot>>,
+    mut inv_event_writer: EventWriter<InventoryChanged>,
+    mut pdi_event_writer: EventWriter<PlayerDroppedItem>,
+    menu_query: Query<&RelativeCursorPosition, With<Menu>>,
+    mut inventory: ResMut<Inventory>,
+) {
+    for event in event_reader.read() {
+        if let Ok(rel_cursor_position) = menu_query.get_single() {
+            if !rel_cursor_position.mouse_over() {
+                if let Some(prev_dragging_inventory_slot) = &event.exited {
+                    if let Some(i) = prev_dragging_inventory_slot.0 {
+                        if let Some(slot) = inventory.0.get_mut(i) {
+                            if let Some(item) = slot {
+                                pdi_event_writer.send(PlayerDroppedItem(item.clone()));
+                                inv_event_writer.send(InventoryChanged);
+                                *slot = None;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        break;
     }
 }

@@ -9,6 +9,8 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, RigidBody};
 use rand::Rng;
 
+use super::{item::spawn_item_bundle, EntitySpawner};
+
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;
 const CHAIR_COLLIDER_HZ: f32 = 0.2;
@@ -23,8 +25,11 @@ const TREASURE_CHEST_INTERACTABLE_RANGE: f32 = 2.0;
 #[derive(Component)]
 pub struct OCItemContainer;
 
-pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
-    child_builder
+pub fn spawn_chair_bundle(
+    entity_spawner: &mut impl EntitySpawner,
+    asset_server: &Res<AssetServer>,
+) {
+    entity_spawner
         .spawn((
             SpatialBundle {
                 transform: Transform::from_xyz(0.0, CHAIR_COLLIDER_HY * 2.0, 0.0),
@@ -47,50 +52,14 @@ pub fn spawn_chair_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<A
         });
 }
 
-fn spawn_item_bundle(
-    item: Item,
-    child_builder: &mut ChildBuilder,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    transform: Option<Transform>,
-    interactable: bool,
-    collider: bool,
-) {
-    let mesh = meshes.add(
-        Cuboid::from_size(Vec3 {
-            x: 0.2,
-            y: 0.2,
-            z: 0.2,
-        })
-        .mesh(),
-    );
-
-    let mut commands = child_builder.spawn((
-        item,
-        PbrBundle {
-            mesh,
-            transform: transform.unwrap_or_default(),
-            ..default()
-        },
-        Name::new("Item"),
-    ));
-
-    if interactable {
-        commands.insert(Item::interactable());
-    }
-
-    if collider {
-        commands.insert(Collider::cuboid(0.1, 0.1, 0.1));
-    }
-}
-
 pub fn spawn_treasure_chest_bundle(
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     world_data: &Res<WorldData>,
     ccm: &ChunkCellMarker,
 ) {
-    child_builder
+    entity_spawner
         .spawn((
             OCItemContainer,
             CyclicAnimation::new(TREASURE_CHEST_MIN_ANIMATION, TREASURE_CHEST_MAX_ANIMATION),
@@ -141,7 +110,10 @@ pub fn spawn_treasure_chest_bundle(
         });
 }
 
-pub fn spawn_staircase_bundle(child_builder: &mut ChildBuilder, asset_server: &Res<AssetServer>) {
+pub fn spawn_staircase_bundle(
+    entity_spawner: &mut impl EntitySpawner,
+    asset_server: &Res<AssetServer>,
+) {
     let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
 
     let step_collider = Collider::cuboid(0.2, 0.1, 0.82);
@@ -195,7 +167,7 @@ pub fn spawn_staircase_bundle(child_builder: &mut ChildBuilder, asset_server: &R
         flat_collider,
     ));
 
-    child_builder
+    entity_spawner
         .spawn((
             SpatialBundle::default(),
             RigidBody::Fixed,

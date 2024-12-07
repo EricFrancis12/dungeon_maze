@@ -1,4 +1,4 @@
-use super::WALL_THICKNESS;
+use super::{EntitySpawner, WALL_THICKNESS};
 use crate::{
     interaction::Interactable,
     utils::entity::incr_betw_transforms,
@@ -19,7 +19,7 @@ const WINDOW_SCALE: Vec3 = Vec3 {
 
 pub fn spawn_window_bundle(
     side: Side,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
 ) {
     // TODO: refine door open/close start & end positions for animation:
@@ -42,7 +42,7 @@ pub fn spawn_window_bundle(
     let mut clone = transforms.clone();
     clone.reverse();
 
-    child_builder.spawn((
+    entity_spawner.spawn((
         SceneBundle {
             scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Window.glb")),
             transform: transforms[0],

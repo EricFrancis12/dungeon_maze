@@ -10,14 +10,14 @@ use super::{
     special::*,
     wall::*,
     window::spawn_window_bundle,
-    WALL_THICKNESS,
+    EntitySpawner, WALL_THICKNESS,
 };
 use bevy::prelude::*;
 
 pub fn spawn_cell_bundle(
     cell: &Cell,
     ccm: ChunkCellMarker,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -33,7 +33,7 @@ pub fn spawn_cell_bundle(
         Name::new(format!("Cell_({},{})", ccm.x, ccm.z)),
     );
 
-    child_builder.spawn(cell_bundle).with_children(|parent| {
+    entity_spawner.spawn(cell_bundle).with_children(|parent| {
         let mesh = meshes.add(
             Cuboid::from_size(Vec3 {
                 x: CELL_SIZE,

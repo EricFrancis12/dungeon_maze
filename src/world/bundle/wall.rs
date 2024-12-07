@@ -3,7 +3,7 @@ use crate::{
     world::{CellWall, Side, CELL_SIZE},
 };
 
-use super::WALL_THICKNESS;
+use super::{EntitySpawner, WALL_THICKNESS};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, ComputedColliderShape};
 use std::f32::consts::PI;
@@ -17,19 +17,25 @@ const WALL_SCALE: Vec3 = Vec3 {
 pub fn spawn_wall_bundle(
     side: Side,
     wall: &CellWall,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     mesh: &Handle<Mesh>,
     material: &Handle<StandardMaterial>,
 ) {
     match wall {
-        CellWall::Solid => spawn_solid_wall_bundle(side, child_builder, &mesh, &material),
+        CellWall::Solid => spawn_solid_wall_bundle(side, entity_spawner, &mesh, &material),
         CellWall::SolidWithDoorGap => {
-            spawn_wall_with_door_gap_bundle(side, child_builder, asset_server, meshes, &material);
+            spawn_wall_with_door_gap_bundle(side, entity_spawner, asset_server, meshes, &material);
         }
         CellWall::SolidWithWindowGap => {
-            spawn_wall_with_window_gap_bundle(side, child_builder, asset_server, meshes, &material);
+            spawn_wall_with_window_gap_bundle(
+                side,
+                entity_spawner,
+                asset_server,
+                meshes,
+                &material,
+            );
         }
         _ => (),
     }
@@ -37,7 +43,7 @@ pub fn spawn_wall_bundle(
 
 pub fn spawn_solid_wall_bundle(
     side: Side,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     mesh: &Handle<Mesh>,
     material: &Handle<StandardMaterial>,
 ) {
@@ -75,7 +81,7 @@ pub fn spawn_solid_wall_bundle(
         Side::Down => (0.0, WALL_THICKNESS / 2.0, 0.0, Quat::from_rotation_x(0.0)),
     };
 
-    child_builder.spawn((
+    entity_spawner.spawn((
         PbrBundle {
             mesh: mesh.clone(),
             material: material.clone(),
@@ -89,7 +95,7 @@ pub fn spawn_solid_wall_bundle(
 
 pub fn spawn_wall_with_door_gap_bundle(
     side: Side,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     material: &Handle<StandardMaterial>,
@@ -103,7 +109,7 @@ pub fn spawn_wall_with_door_gap_bundle(
     );
     let mesh = meshes.get(&mesh_handle).unwrap();
 
-    child_builder.spawn((
+    entity_spawner.spawn((
         PbrBundle {
             mesh: mesh_handle,
             material: material.clone(),
@@ -119,7 +125,7 @@ pub fn spawn_wall_with_door_gap_bundle(
 
 pub fn spawn_wall_with_window_gap_bundle(
     side: Side,
-    child_builder: &mut ChildBuilder,
+    entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     material: &Handle<StandardMaterial>,
@@ -133,7 +139,7 @@ pub fn spawn_wall_with_window_gap_bundle(
     );
     let mesh = meshes.get(&mesh_handle).unwrap();
 
-    child_builder.spawn((
+    entity_spawner.spawn((
         PbrBundle {
             mesh: mesh_handle.clone(),
             material: material.clone(),

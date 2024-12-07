@@ -1,11 +1,11 @@
 use super::{
-    bundle::{chunk::spawn_chunk_bundle, special::OCItemContainer},
+    bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle, special::OCItemContainer},
     data::WorldData,
     make_nei_chunks_xyz, ActiveChunk, AssetLib, ChunkCellMarker, ChunkMarker, CyclicTransform,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    inventory::Item,
+    inventory::{Item, PlayerDroppedItem},
     player::Player,
     settings::{GameSettings, RenderDistChanged},
 };
@@ -159,5 +159,27 @@ pub fn activate_items_inside_containers(
                 break;
             }
         }
+    }
+}
+
+pub fn spawn_dropped_item(
+    mut commands: Commands,
+    mut event_reader: EventReader<PlayerDroppedItem>,
+    player_query: Query<&GlobalTransform, With<Player>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for event in event_reader.read() {
+        let player_gl_transform = player_query.get_single().unwrap();
+        spawn_item_bundle(
+            event.0.clone(),
+            &mut commands,
+            &mut meshes,
+            Some(Transform::from_translation(
+                player_gl_transform.translation(),
+            )),
+            true,
+            true,
+        );
+        break;
     }
 }

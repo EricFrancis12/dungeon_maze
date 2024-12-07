@@ -25,7 +25,7 @@ impl Plugin for MenuPlugin {
                     change_menu_tabs_background_color,
                     change_render_dist,
                     change_render_dist_buttons_background_color,
-                    update_visibility_on_parent_hover,
+                    update_visible_on_parent_hover,
                     start_drag_inventory_item,
                     stop_drag_inventory_item,
                     update_item_image_cursor_follower,
@@ -59,10 +59,10 @@ struct MenuOpen(bool);
 struct ActiveMenuTab(MenuTab);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-struct DraggingInventorySlot(Option<usize>);
+pub struct DraggingInventorySlot(pub Option<usize>);
 
 #[derive(Component)]
-struct Menu;
+pub struct Menu;
 
 #[derive(Component)]
 struct MenuContent;
@@ -113,6 +113,8 @@ fn spawn_menu(
 ) {
     commands
         .spawn((
+            Menu,
+            RelativeCursorPosition::default(),
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
@@ -127,12 +129,12 @@ fn spawn_menu(
                 background_color: Color::BLACK.into(),
                 ..default()
             },
-            Menu,
             Name::new("Menu"),
         ))
         .with_children(|parent| {
             parent
                 .spawn((
+                    MenuContent,
                     NodeBundle {
                         style: Style {
                             display: Display::Flex,
@@ -145,7 +147,6 @@ fn spawn_menu(
                         background_color: Color::linear_rgba(0.0, 0.0, 0.7, 1.0).into(),
                         ..default()
                     },
-                    MenuContent,
                 ))
                 .with_children(|grandparent| match active_menu_tab.get().0 {
                     MenuTab::Inventory => {
@@ -528,7 +529,7 @@ fn change_render_dist_buttons_background_color(
     }
 }
 
-fn update_visibility_on_parent_hover(
+fn update_visible_on_parent_hover(
     mut visibility_query: Query<(Entity, &mut Visibility, &VisibleOnParentHover)>,
     interaction_query: Query<&Interaction>,
     parent_query: Query<&Parent>,
