@@ -1,5 +1,6 @@
 mod animation;
 mod camera;
+mod cursor;
 mod error;
 mod interaction;
 mod inventory;
@@ -18,6 +19,7 @@ mod debug;
 
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
+use cursor::CursorPlugin;
 use interaction::InteractionPlugin;
 use inventory::InventoryPlugin;
 use menu::MenuPlugin;
@@ -49,6 +51,7 @@ fn main() {
     app.add_plugins((
         DefaultPlugins,
         RapierPhysicsPlugin::<NoUserData>::default(),
+        CursorPlugin,
         TextPopupPlugin,
         MenuPlugin,
         PlayerPlugin,

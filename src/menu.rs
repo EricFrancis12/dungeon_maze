@@ -1,4 +1,5 @@
 use crate::{
+    cursor::{CursorFollower, CursorPosition},
     inventory::{Inventory, InventoryChanged},
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
     utils::entity::get_n_parent,
@@ -27,6 +28,7 @@ impl Plugin for MenuPlugin {
                     update_visibility_on_parent_hover,
                     start_drag_inventory_item,
                     stop_drag_inventory_item,
+                    update_item_image_cursor_follower,
                 ),
             )
             .add_systems(OnEnter(MenuOpen(true)), spawn_menu)
@@ -50,15 +52,6 @@ impl std::fmt::Display for MenuTab {
     }
 }
 
-#[derive(Component)]
-struct Menu;
-
-#[derive(Component)]
-struct MenuContent;
-
-#[derive(Component)]
-struct RenderDistButton(u32);
-
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct MenuOpen(bool);
 
@@ -69,7 +62,22 @@ struct ActiveMenuTab(MenuTab);
 struct DraggingInventorySlot(Option<usize>);
 
 #[derive(Component)]
+struct Menu;
+
+#[derive(Component)]
+struct MenuContent;
+
+#[derive(Component)]
+struct RenderDistButton(u32);
+
+#[derive(Component)]
 struct InventorySlot(usize);
+
+#[derive(Component)]
+struct InventorySlotImage(usize);
+
+#[derive(Component)]
+struct ItemImageCursorFollower;
 
 #[derive(Component)]
 struct VisibleOnParentHover {
@@ -299,15 +307,19 @@ fn spawn_inventory_menu_content(
 
                 if let Some(item) = slot {
                     entity_commands.with_children(|grandparent| {
-                        grandparent.spawn(ImageBundle {
-                            image: item.ui_image(asset_server),
-                            style: Style {
-                                height: Val::Px(40.0),
-                                width: Val::Px(40.0),
+                        grandparent.spawn((
+                            InventorySlotImage(i),
+                            RelativeCursorPosition::default(),
+                            ImageBundle {
+                                image: item.ui_image(asset_server),
+                                style: Style {
+                                    height: Val::Px(40.0),
+                                    width: Val::Px(40.0),
+                                    ..default()
+                                },
                                 ..default()
                             },
-                            ..default()
-                        });
+                        ));
 
                         grandparent.spawn((
                             VisibleOnParentHover::default(),
@@ -570,4 +582,58 @@ fn stop_drag_inventory_item(
 
         next_dragging_inventory_slot.set(DraggingInventorySlot(None));
     }
+}
+
+fn update_item_image_cursor_follower(
+    mut commands: Commands,
+    mut event_reader: EventReader<StateTransitionEvent<DraggingInventorySlot>>,
+    image_query: Query<(&UiImage, &Style, &InventorySlotImage)>,
+    cursor_follower_query: Query<Entity, (With<ItemImageCursorFollower>, With<CursorFollower>)>,
+    cursor_position: Res<CursorPosition>,
+    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
+) {
+    for _ in event_reader.read() {
+        if let Some(i) = dragging_inventory_slot.get().0 {
+            if let Some((ui_image, ui_image_style, _)) =
+                image_query.iter().find(|(_, _, isi)| isi.0 == i)
+            {
+                spawn_item_image_cursor_follower(
+                    &mut commands,
+                    &cursor_position,
+                    &ui_image,
+                    &ui_image_style,
+                );
+            }
+        } else {
+            for entity in cursor_follower_query.iter() {
+                commands.entity(entity).despawn_recursive();
+            }
+        }
+
+        break;
+    }
+}
+
+fn spawn_item_image_cursor_follower(
+    commands: &mut Commands,
+    cursor_position: &CursorPosition,
+    ui_image: &UiImage,
+    ui_image_style: &Style,
+) {
+    let mut image = ui_image.clone();
+    image.color = Color::srgba_u8(255, 255, 255, 200);
+
+    let mut style = ui_image_style.clone();
+    style.left = Val::Px(cursor_position.0.x);
+    style.top = Val::Px(cursor_position.0.y);
+
+    commands.spawn((
+        ItemImageCursorFollower,
+        CursorFollower,
+        ImageBundle {
+            image,
+            style,
+            ..default()
+        },
+    ));
 }
