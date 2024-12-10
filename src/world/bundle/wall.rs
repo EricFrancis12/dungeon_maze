@@ -1,5 +1,8 @@
 use crate::{
-    utils::asset::blocking_load,
+    meshes::{
+        wall_with_door_gap::make_wall_with_door_gap_mesh,
+        wall_with_window_gap::make_wall_with_window_gap_mesh,
+    },
     world::{CellWall, Side, CELL_SIZE},
 };
 
@@ -18,7 +21,6 @@ pub fn spawn_wall_bundle(
     side: Side,
     wall: &CellWall,
     entity_spawner: &mut impl EntitySpawner,
-    asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     mesh: &Handle<Mesh>,
     material: &Handle<StandardMaterial>,
@@ -26,16 +28,10 @@ pub fn spawn_wall_bundle(
     match wall {
         CellWall::Solid => spawn_solid_wall_bundle(side, entity_spawner, &mesh, &material),
         CellWall::SolidWithDoorGap => {
-            spawn_wall_with_door_gap_bundle(side, entity_spawner, asset_server, meshes, &material);
+            spawn_wall_with_door_gap_bundle(side, entity_spawner, meshes, &material);
         }
         CellWall::SolidWithWindowGap => {
-            spawn_wall_with_window_gap_bundle(
-                side,
-                entity_spawner,
-                asset_server,
-                meshes,
-                &material,
-            );
+            spawn_wall_with_window_gap_bundle(side, entity_spawner, meshes, &material);
         }
         _ => (),
     }
@@ -96,17 +92,11 @@ pub fn spawn_solid_wall_bundle(
 pub fn spawn_wall_with_door_gap_bundle(
     side: Side,
     entity_spawner: &mut impl EntitySpawner,
-    asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     material: &Handle<StandardMaterial>,
 ) {
     let (x, y, z, r) = wall_dims(&side);
-
-    let mesh_handle: Handle<Mesh> = blocking_load(
-        asset_server,
-        "meshes/wall_with_door_gap.glb#Mesh0/Primitive0",
-        100,
-    );
+    let mesh_handle = meshes.add(make_wall_with_door_gap_mesh());
     let mesh = meshes.get(&mesh_handle).unwrap();
 
     entity_spawner.spawn((
@@ -126,17 +116,11 @@ pub fn spawn_wall_with_door_gap_bundle(
 pub fn spawn_wall_with_window_gap_bundle(
     side: Side,
     entity_spawner: &mut impl EntitySpawner,
-    asset_server: &Res<AssetServer>,
     meshes: &mut ResMut<Assets<Mesh>>,
     material: &Handle<StandardMaterial>,
 ) {
     let (x, y, z, r) = wall_dims(&side);
-
-    let mesh_handle: Handle<Mesh> = blocking_load(
-        asset_server,
-        "meshes/wall_with_window_gap.glb#Mesh0/Primitive0",
-        100,
-    );
+    let mesh_handle = meshes.add(make_wall_with_window_gap_mesh());
     let mesh = meshes.get(&mesh_handle).unwrap();
 
     entity_spawner.spawn((

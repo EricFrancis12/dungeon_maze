@@ -52,6 +52,7 @@ pub fn spawn_cell_bundle(
                 &materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
             );
         }
+
         // Ceiling
         if cell.ceiling == CellWall::Solid {
             spawn_solid_wall_bundle(
@@ -88,7 +89,7 @@ pub fn spawn_cell_bundle(
             (Side::Left, &cell.wall_left),
             (Side::Right, &cell.wall_right),
         ] {
-            spawn_wall_bundle(side, wall, parent, asset_server, meshes, &mesh, &material);
+            spawn_wall_bundle(side, wall, parent, meshes, &mesh, &material);
         }
 
         // Doors

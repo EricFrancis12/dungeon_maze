@@ -1,7 +1,7 @@
 use super::{
     bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle, special::OCItemContainer},
     data::WorldData,
-    make_nei_chunks_xyz, ActiveChunk, AssetLib, ChunkCellMarker, ChunkMarker, CyclicTransform,
+    make_nei_chunks_xyz, ActiveChunk, ChunkCellMarker, ChunkMarker, CyclicTransform,
 };
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
@@ -12,18 +12,6 @@ use crate::{
 
 use bevy::prelude::*;
 use std::collections::HashSet;
-
-pub fn preload_assets(asset_server: Res<AssetServer>, mut asset_lib: ResMut<AssetLib>) {
-    let mut meshes: Vec<Handle<Mesh>> = vec![];
-    for mesh_path in [
-        "meshes/wall_with_door_gap.glb#Mesh0/Primitive0",
-        "meshes/wall_with_window_gap.glb#Mesh0/Primitive0",
-    ] {
-        let h: Handle<Mesh> = asset_server.load(mesh_path);
-        meshes.push(h);
-    }
-    asset_lib.meshes = meshes;
-}
 
 pub fn spawn_initial_chunks(
     mut commands: Commands,

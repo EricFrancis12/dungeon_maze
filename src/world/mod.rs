@@ -30,8 +30,7 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ActiveChunk>()
-            .init_resource::<AssetLib>()
-            .add_systems(Startup, (preload_assets, spawn_initial_chunks))
+            .add_systems(Startup, spawn_initial_chunks)
             .add_systems(
                 Update,
                 (
@@ -45,11 +44,6 @@ impl Plugin for WorldPlugin {
                 ),
             );
     }
-}
-
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Resource)]
-pub struct AssetLib {
-    meshes: Vec<Handle<Mesh>>,
 }
 
 #[derive(Display)]

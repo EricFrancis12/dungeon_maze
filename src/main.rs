@@ -5,6 +5,7 @@ mod error;
 mod interaction;
 mod inventory;
 mod menu;
+mod meshes;
 mod player;
 mod save;
 mod settings;

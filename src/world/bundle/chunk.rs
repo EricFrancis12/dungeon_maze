@@ -31,8 +31,8 @@ pub fn spawn_chunk_bundle(
     entity_spawner.spawn(chunk_bundle).with_children(|parent| {
         let chunk = chunk_from_xyz_seed(SEED, chunk_x, chunk_y, chunk_z);
 
-        for (x, row) in chunk.cells.iter().enumerate() {
-            for (z, cell) in row.iter().enumerate() {
+        for (z, row) in chunk.cells.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
                 let ccm = ChunkCellMarker {
                     chunk_x,
                     chunk_y,

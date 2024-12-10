@@ -1,4 +1,3 @@
-pub mod asset;
 pub mod debug;
 pub mod entity;
 pub mod maze;
