@@ -104,8 +104,8 @@ impl WorldStructure {
                             ..default()
                         },
                         Cell {
-                            wall_top: CellWall::SolidWithWindowGap,
-                            wall_right: CellWall::Solid,
+                            wall_bottom: CellWall::SolidWithWindowGap,
+                            wall_left: CellWall::Solid,
                             floor: CellWall::Solid,
                             ceiling: CellWall::Solid,
                             window_top: true,
@@ -116,8 +116,8 @@ impl WorldStructure {
                     vec![
                         Cell::new_floored(),
                         Cell {
-                            wall_bottom: CellWall::Solid,
-                            wall_left: CellWall::Solid,
+                            wall_top: CellWall::Solid,
+                            wall_right: CellWall::Solid,
                             floor: CellWall::Solid,
                             ceiling: CellWall::Solid,
                             special: CellSpecial::Chair,

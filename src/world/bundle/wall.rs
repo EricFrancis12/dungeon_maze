@@ -12,9 +12,9 @@ use bevy_rapier3d::prelude::{Collider, ComputedColliderShape};
 use std::f32::consts::PI;
 
 const WALL_SCALE: Vec3 = Vec3 {
-    x: 2.0,
-    y: WALL_THICKNESS * 2.0,
-    z: 2.0,
+    x: 1.0,
+    y: 1.0,
+    z: WALL_THICKNESS,
 };
 
 pub fn spawn_wall_bundle(
@@ -140,28 +140,28 @@ pub fn spawn_wall_with_window_gap_bundle(
 fn wall_dims(side: &Side) -> (f32, f32, f32, Quat) {
     match side {
         Side::Top => (
-            CELL_SIZE / 2.0,
+            CELL_SIZE / 2.0 - WALL_THICKNESS,
             CELL_SIZE / 2.0,
             0.0,
-            Quat::from_rotation_x(PI / 2.0) * Quat::from_rotation_z(PI / 2.0),
+            Quat::from_rotation_y(PI / 2.0),
         ),
         Side::Bottom => (
-            -CELL_SIZE / 2.0 + WALL_THICKNESS,
+            -CELL_SIZE / 2.0,
             CELL_SIZE / 2.0,
             0.0,
-            Quat::from_rotation_x(PI / 2.0) * Quat::from_rotation_z(PI / 2.0),
+            Quat::from_rotation_y(PI / 2.0),
         ),
         Side::Left => (
             0.0,
             CELL_SIZE / 2.0,
-            CELL_SIZE / 2.0 - WALL_THICKNESS,
-            Quat::from_rotation_x(PI / 2.0),
+            CELL_SIZE / 2.0,
+            Quat::from_rotation_x(0.0),
         ),
         Side::Right => (
             0.0,
             CELL_SIZE / 2.0,
             -CELL_SIZE / 2.0,
-            Quat::from_rotation_x(PI / 2.0),
+            Quat::from_rotation_x(0.0),
         ),
         _ => panic!("unexpected side: {}", side),
     }
