@@ -1,13 +1,14 @@
-use bevy::prelude::*;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_rapier3d::prelude::*;
-use std::{env, f32::consts::PI};
-
 use crate::{
+    camera::MainCamera,
     player::{Player, PlayerState},
     utils::contains_any,
     world::ChunkCellMarker,
 };
+
+use bevy::prelude::*;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_rapier3d::prelude::*;
+use std::{env, f32::consts::PI};
 
 pub struct DebugPlugin;
 
@@ -71,7 +72,7 @@ struct CompassArm;
 struct CompassHand(f32);
 
 fn player_flight_movement(
-    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
+    camera_query: Query<&Transform, With<MainCamera>>,
     mut player_query: Query<&mut Transform, With<Player>>,
     player_state: Res<State<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -294,7 +295,7 @@ fn spawn_compass_ui(mut commands: Commands, ui_overlay_query: Query<Entity, With
 }
 
 fn update_compass_ui(
-    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<Player>)>,
+    camera_query: Query<&GlobalTransform, With<MainCamera>>,
     player_query: Query<&GlobalTransform, With<Player>>,
     mut compass_query: Query<&mut Transform, With<Compass>>,
     mut compass_hands_query: Query<(&CompassHand, &mut Transform), Without<Compass>>,

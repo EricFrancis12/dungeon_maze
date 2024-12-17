@@ -1,5 +1,6 @@
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
+    camera::MainCamera,
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
 
@@ -232,7 +233,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn player_ground_movement(
-    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
+    camera_query: Query<&Transform, (With<MainCamera>, Without<Player>)>,
     mut player_query: Query<(&mut Transform, &mut Velocity, &Speed), With<Player>>,
     player_state: Res<State<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
