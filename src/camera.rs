@@ -101,7 +101,7 @@ fn manage_cameras(
         camera.is_active = false;
         tracer_camera.is_active = true;
 
-        tracer_camera_transform.translation = projected_hit_point; // TODO: move camera slightly toward player to avoid the camera being inside of walls
+        tracer_camera_transform.translation = projected_hit_point;
         tracer_camera_transform.look_at(player_translation, Vec3::Y);
 
         return;
