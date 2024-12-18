@@ -59,6 +59,7 @@ impl CyclicCounter {
     }
 }
 
+#[cfg(debug_assertions)]
 pub fn contains_any<T, S1, S2>(sized1: S1, sized2: S2) -> bool
 where
     T: PartialEq,

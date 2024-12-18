@@ -1,12 +1,18 @@
 use crate::player::Player;
 
 use bevy::prelude::*;
-use bevy_rapier3d::{plugin::RapierContext, prelude::QueryFilter};
+use bevy_rapier3d::{
+    plugin::{PhysicsSet, RapierContext},
+    prelude::QueryFilter,
+};
 use bevy_third_person_camera::*;
 
 const CAMERA_ZOOM_MIN: f32 = 0.1;
 const CAMERA_ZOOM_MAX: f32 = 3.0;
 const CAMERA_SENSITIVITY: f32 = 2.5;
+
+const CAMERA_MARGIN: f32 = 0.3;
+const CAMERA_RAY_EXTENSION: f32 = 1.0;
 
 pub struct CameraPlugin;
 
@@ -14,7 +20,8 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ThirdPersonCameraPlugin)
             .add_systems(Startup, (spawn_main_camera, spawn_ray_collider_camera))
-            .add_systems(Update, manage_cameras);
+            .add_systems(Update, manage_cameras)
+            .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation));
     }
 }
 
@@ -81,17 +88,20 @@ fn manage_cameras(
 
     let ray_pos = player_translation;
     let ray_dir = (camera_translation - player_translation).normalize();
-    let distance = camera_translation.distance(player_translation);
+    let distance = camera_translation.distance(player_translation) + CAMERA_RAY_EXTENSION;
     let solid = true;
     let filter = QueryFilter::default().exclude_collider(player_entity);
 
-    if let Some((_, toi)) = rapier_context.cast_ray(ray_pos, ray_dir, distance, solid, filter) {
-        let hit_point = ray_pos + ray_dir * toi;
+    if let Some((_, intersection)) =
+        rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, distance, solid, filter)
+    {
+        let direction = intersection.point + intersection.normal;
+        let projected_hit_point = intersection.point.move_towards(direction, CAMERA_MARGIN);
 
         camera.is_active = false;
         tracer_camera.is_active = true;
 
-        tracer_camera_transform.translation = hit_point; // TODO: move camera slightly toward player to avoid the camera being inside of walls
+        tracer_camera_transform.translation = projected_hit_point; // TODO: move camera slightly toward player to avoid the camera being inside of walls
         tracer_camera_transform.look_at(player_translation, Vec3::Y);
 
         return;
