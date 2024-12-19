@@ -19,8 +19,8 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ThirdPersonCameraPlugin)
-            .add_systems(Startup, (spawn_main_camera, spawn_ray_collider_camera))
-            .add_systems(Update, manage_cameras)
+            .add_systems(Startup, (spawn_main_camera, spawn_alt_camera))
+            .add_systems(Update, switch_cameras)
             .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation));
     }
 }
@@ -29,7 +29,7 @@ impl Plugin for CameraPlugin {
 pub struct MainCamera;
 
 #[derive(Component)]
-struct RayColliderCamera;
+struct AltCamera;
 
 fn spawn_main_camera(mut commands: Commands) {
     let main_camera_bundle = (
@@ -43,15 +43,15 @@ fn spawn_main_camera(mut commands: Commands) {
             },
             ..default()
         },
-        Name::new("Camera"),
+        Name::new("Main Camera"),
     );
 
     commands.spawn(main_camera_bundle);
 }
 
-fn spawn_ray_collider_camera(mut commands: Commands) {
-    let ray_collider_camera_bundle = (
-        RayColliderCamera,
+fn spawn_alt_camera(mut commands: Commands) {
+    let alt_camera_bundle = (
+        AltCamera,
         Camera3dBundle {
             camera: Camera {
                 is_active: false,
@@ -59,54 +59,60 @@ fn spawn_ray_collider_camera(mut commands: Commands) {
             },
             ..default()
         },
-        Name::new("Ray Collider Camera"),
+        Name::new("Alt Camera"),
     );
 
-    commands.spawn(ray_collider_camera_bundle);
+    commands.spawn(alt_camera_bundle);
 }
 
-fn manage_cameras(
-    mut camera_query: Query<(&mut Camera, &GlobalTransform), With<MainCamera>>,
-    mut camera_tracer_query: Query<
+fn switch_cameras(
+    mut main_camera_query: Query<(&mut Camera, &GlobalTransform), With<MainCamera>>,
+    mut alt_camera_query: Query<
         (&mut Camera, &mut Transform),
-        (
-            With<RayColliderCamera>,
-            Without<MainCamera>,
-            Without<Player>,
-        ),
+        (With<AltCamera>, Without<MainCamera>),
     >,
     player_query: Query<(Entity, &GlobalTransform), With<Player>>,
     rapier_context: Res<RapierContext>,
 ) {
-    let (mut camera, camera_gl_transform) = camera_query.get_single_mut().unwrap();
-    let (mut tracer_camera, mut tracer_camera_transform) =
-        camera_tracer_query.get_single_mut().unwrap();
+    let (mut main_camera, main_camera_gl_transform) = main_camera_query.get_single_mut().unwrap();
+    let (mut alt_camera, mut alt_camera_transform) = alt_camera_query.get_single_mut().unwrap();
     let (player_entity, player_gl_transform) = player_query.get_single().unwrap();
 
-    let camera_translation = camera_gl_transform.translation();
+    let main_camera_translation = main_camera_gl_transform.translation();
     let player_translation = player_gl_transform.translation();
 
-    let ray_pos = player_translation;
-    let ray_dir = (camera_translation - player_translation).normalize();
-    let distance = camera_translation.distance(player_translation) + CAMERA_RAY_EXTENSION;
-    let solid = true;
-    let filter = QueryFilter::default().exclude_collider(player_entity);
+    let ray_dir = (main_camera_translation - player_translation).normalize();
+    let distance = main_camera_translation.distance(player_translation) + CAMERA_RAY_EXTENSION;
 
-    if let Some((_, intersection)) =
-        rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, distance, solid, filter)
-    {
+    if let Some((_, intersection)) = rapier_context.cast_ray_and_get_normal(
+        player_translation,
+        ray_dir,
+        distance,
+        true,
+        QueryFilter::default().exclude_collider(player_entity),
+    ) {
         let direction = intersection.point + intersection.normal;
         let projected_hit_point = intersection.point.move_towards(direction, CAMERA_MARGIN);
 
-        camera.is_active = false;
-        tracer_camera.is_active = true;
+        alt_camera_transform.translation = projected_hit_point;
+        alt_camera_transform.look_at(player_translation, Vec3::Y);
 
-        tracer_camera_transform.translation = projected_hit_point;
-        tracer_camera_transform.look_at(player_translation, Vec3::Y);
+        activate_camera(&mut alt_camera);
+        deactivate_camera(&mut main_camera);
 
         return;
     }
 
+    activate_camera(&mut main_camera);
+    deactivate_camera(&mut alt_camera);
+}
+
+fn activate_camera(camera: &mut Camera) {
     camera.is_active = true;
-    tracer_camera.is_active = false;
+    camera.order = 1;
+}
+
+fn deactivate_camera(camera: &mut Camera) {
+    camera.is_active = false;
+    camera.order = 0;
 }

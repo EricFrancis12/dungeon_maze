@@ -128,6 +128,8 @@ impl WorldStructure {
                             wall_right: CellWall::Solid,
                             floor: CellWall::Solid,
                             ceiling: CellWall::Solid,
+                            // TODO: Fix items removed from TreasureChests inside Houses
+                            // are not being saved:
                             special: CellSpecial::TreasureChest,
                             ..default()
                         },
