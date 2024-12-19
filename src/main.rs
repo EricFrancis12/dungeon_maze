@@ -2,6 +2,7 @@ mod animation;
 mod camera;
 mod cursor;
 mod error;
+mod hud;
 mod interaction;
 mod inventory;
 mod menu;
@@ -23,6 +24,7 @@ mod debug;
 use animation::AnimationPlugin;
 use camera::CameraPlugin;
 use cursor::CursorPlugin;
+use hud::HudPlugin;
 use interaction::InteractionPlugin;
 use inventory::InventoryPlugin;
 use menu::MenuPlugin;
@@ -65,6 +67,7 @@ fn main() {
         InventoryPlugin,
         GameSavePlugin,
         WorldPlugin,
+        HudPlugin,
         #[cfg(debug_assertions)]
         DebugPlugin,
     ));

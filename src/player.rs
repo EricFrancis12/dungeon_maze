@@ -109,9 +109,9 @@ macro_rules! regenerator_impl {
 }
 
 #[derive(Component)]
-struct Health {
-    value: f32,
-    max_value: f32,
+pub struct Health {
+    pub value: f32,
+    pub max_value: f32,
     _base_regen: f32,
     _regen_modifiers: Vec<RegenModifier>,
 }
@@ -130,9 +130,9 @@ impl Health {
 }
 
 #[derive(Component)]
-struct Stamina {
-    value: f32,
-    max_value: f32,
+pub struct Stamina {
+    pub value: f32,
+    pub max_value: f32,
     _base_regen: f32,
     _regen_modifiers: Vec<RegenModifier>,
 }
