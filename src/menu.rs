@@ -1,6 +1,7 @@
 use crate::{
     cursor::{CursorFollower, CursorPosition},
-    inventory::{Inventory, InventoryChanged},
+    inventory::{Inventory, InventoryChanged, ItemName, ItemUsed},
+    player::{Health, Player, Stamina},
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
     utils::entity::get_n_parent,
 };
@@ -28,6 +29,8 @@ impl Plugin for MenuPlugin {
                     update_visible_on_parent_hover,
                     start_drag_inventory_item,
                     stop_drag_inventory_item,
+                    use_inventory_item,
+                    handle_item_used,
                     update_item_image_cursor_follower,
                 ),
             )
@@ -593,6 +596,69 @@ fn stop_drag_inventory_item(
         }
 
         next_dragging_inventory_slot.set(DraggingInventorySlot(None));
+    }
+}
+
+fn use_inventory_item(
+    mut item_event_writer: EventWriter<ItemUsed>,
+    mut inv_event_writer: EventWriter<InventoryChanged>,
+    inventory_slot_query: Query<(&InventorySlot, &RelativeCursorPosition)>,
+    player_query: Query<Entity, With<Player>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut inventory: ResMut<Inventory>,
+) {
+    if mouse.just_released(MouseButton::Right) {
+        for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
+            if rel_cursor_position.mouse_over() {
+                let (output, was_mutated) = inventory.use_at(inventory_slot.0);
+                if let Some(item) = output {
+                    let entity = player_query.get_single().unwrap();
+                    item_event_writer.send(ItemUsed(item, entity));
+                }
+                if was_mutated {
+                    inv_event_writer.send(InventoryChanged);
+                }
+                break;
+            }
+        }
+    }
+}
+
+fn handle_item_used(
+    mut event_reader: EventReader<ItemUsed>,
+    mut health_query: Query<(Entity, &mut Health)>,
+    mut stamina_query: Query<(Entity, &mut Stamina)>,
+) {
+    for event in event_reader.read() {
+        match event.0.name {
+            ItemName::HealthPotion => {
+                if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1)
+                {
+                    health.add(30.0);
+                }
+            }
+            ItemName::StaminaPotion => {
+                if let Some((_, mut stamina)) =
+                    stamina_query.iter_mut().find(|(e, _)| *e == event.1)
+                {
+                    stamina.add(30.0);
+                }
+            }
+            ItemName::HealthPoison => {
+                if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1)
+                {
+                    health.subtract(30.0);
+                }
+            }
+            ItemName::StaminaPoison => {
+                if let Some((_, mut stamina)) =
+                    stamina_query.iter_mut().find(|(e, _)| *e == event.1)
+                {
+                    stamina.subtract(30.0);
+                }
+            }
+            _ => {}
+        }
     }
 }
 

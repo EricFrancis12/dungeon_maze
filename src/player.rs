@@ -108,6 +108,22 @@ macro_rules! regenerator_impl {
     };
 }
 
+macro_rules! modify_value {
+    ($t:ty) => {
+        impl $t {
+            pub fn add(&mut self, amt: f32) -> f32 {
+                let prev = self.value;
+                self.value = _min_max_or_betw(0.0, self.max_value, self.value + amt);
+                self.value - prev
+            }
+
+            pub fn subtract(&mut self, amt: f32) -> f32 {
+                self.add(-amt)
+            }
+        }
+    };
+}
+
 #[derive(Component)]
 pub struct Health {
     pub value: f32,
@@ -117,6 +133,7 @@ pub struct Health {
 }
 
 regenerator_impl!(Health);
+modify_value!(Health);
 
 impl Health {
     fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
@@ -138,6 +155,7 @@ pub struct Stamina {
 }
 
 regenerator_impl!(Stamina);
+modify_value!(Stamina);
 
 impl Stamina {
     fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {

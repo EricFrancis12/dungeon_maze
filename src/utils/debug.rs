@@ -1,9 +1,9 @@
 #[macro_export]
 macro_rules! should_not_happen {
-    ($msg:expr) => {
+    ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
-            warn!("Expected to never happen, but got: {}", $msg);
+            warn!("Expected to never happen, but got: {}", format!($($arg)*));
         }
     };
 }

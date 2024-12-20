@@ -22,6 +22,7 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Inventory>()
             .add_event::<InventoryChanged>()
+            .add_event::<ItemUsed>()
             .add_event::<PlayerDroppedItem>()
             .add_event::<ItemRemovedFromOCItemContainer>()
             .add_systems(Update, (pick_up_items, drop_dragged_item));
@@ -30,6 +31,7 @@ impl Plugin for InventoryPlugin {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ItemType {
+    Consumable,
     Misc,
     RawMaterial,
     Weapon,
@@ -40,6 +42,10 @@ pub enum ItemName {
     Coal,
     Cotton,
     Flint,
+    HealthPotion,
+    StaminaPotion,
+    HealthPoison,
+    StaminaPoison,
 }
 
 impl ItemName {
@@ -52,12 +58,15 @@ impl ItemName {
     pub fn item_type(&self) -> ItemType {
         match self {
             Self::Coal | Self::Cotton | Self::Flint => ItemType::RawMaterial,
+            Self::HealthPotion | Self::StaminaPotion | Self::HealthPoison | Self::StaminaPoison => {
+                ItemType::Consumable
+            }
         }
     }
 
     pub fn max_amt(&self) -> u16 {
         match self.item_type() {
-            ItemType::Misc | ItemType::RawMaterial => 64,
+            ItemType::Consumable | ItemType::Misc | ItemType::RawMaterial => 64,
             ItemType::Weapon => 1,
         }
     }
@@ -68,6 +77,10 @@ impl ItemName {
                 Self::Coal => asset_server.load("images/coal.png"),
                 Self::Cotton => asset_server.load("images/cotton.png"),
                 Self::Flint => asset_server.load("images/flint.png"),
+                Self::HealthPotion => asset_server.load("images/health_potion.png"),
+                Self::StaminaPotion => asset_server.load("images/stamina_potion.png"),
+                Self::HealthPoison => asset_server.load("images/health_poison.png"),
+                Self::StaminaPoison => asset_server.load("images/stamina_poison.png"),
             },
             ..default()
         }
@@ -100,7 +113,7 @@ impl Item {
         self.name.max_amt()
     }
 
-    pub fn merge(&mut self, item: Item) -> Option<Item> {
+    pub fn merge(&mut self, item: Item) -> Option<Self> {
         if self.name != item.name {
             should_not_happen!("attempting to merge 2 items with different ItemNames");
             return Some(item);
@@ -126,6 +139,22 @@ impl Item {
 
     pub fn ui_image(&self, asset_server: &Res<AssetServer>) -> UiImage {
         self.name.ui_image(asset_server)
+    }
+
+    // _use returns a tuple with 2 values:
+    // The first value is an optional Item, which represents the byproduct (output) of the original item being used.
+    // The second value is a bool that indicates whether or not the original item was mutated.
+    pub fn _use(&mut self) -> (Option<Self>, bool) {
+        match self.name.item_type() {
+            ItemType::Consumable => {
+                if self.amt == 0 {
+                    return (None, false);
+                }
+                self.amt -= 1;
+                return (Some(self.clone_with_amt(1)), true);
+            }
+            _ => (None, false),
+        }
     }
 }
 
@@ -164,10 +193,28 @@ impl Inventory {
 
         Some(temp_item)
     }
+
+    pub fn use_at(&mut self, i: usize) -> (Option<Item>, bool) {
+        if let Some(slot) = self.0.get_mut(i) {
+            if let Some(item) = slot {
+                let result = item._use();
+                if item.amt == 0 {
+                    *slot = None;
+                }
+                return result;
+            }
+        } else {
+            should_not_happen!("indexing inventory out of bounds: {}", i);
+        }
+        (None, false)
+    }
 }
 
 #[derive(Event)]
 pub struct InventoryChanged;
+
+#[derive(Event)]
+pub struct ItemUsed(pub Item, pub Entity);
 
 #[derive(Event)]
 pub struct PlayerDroppedItem(pub Item);
