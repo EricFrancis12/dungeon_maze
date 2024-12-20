@@ -68,37 +68,54 @@ pub struct Speed(pub f32);
 
 // TODO: create derive macro for Regenerator
 trait Regenerator {
-    fn base_regen(&mut self) -> f32;
+    fn get_base_regen(&mut self) -> f32;
 
-    fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier>;
+    fn get_static_modifiers(&mut self) -> &mut Vec<f32>;
+
+    fn get_temp_modifiers(&mut self) -> &mut Vec<TimedModifier>;
 
     fn do_regen(&mut self);
 
-    fn add_regen_modifier(&mut self, amt: f32, durr: u32) {
-        self.regen_modifiers().push(RegenModifier::new(amt, durr));
+    fn _add_static_modifier(&mut self, amt: f32) {
+        self.get_static_modifiers().push(amt);
     }
 
-    fn tick_all_regen_modifiers(&mut self) {
-        self.regen_modifiers().retain_mut(|m| m.tick() != 0);
+    fn add_temp_modifier(&mut self, amt: f32, durr: u32) {
+        self.get_temp_modifiers()
+            .push(TimedModifier::new(amt, durr));
+    }
+
+    fn tick_temp_modifiers(&mut self) {
+        self.get_temp_modifiers().retain_mut(|m| m.tick() != 0);
     }
 
     fn get_regen(&mut self) -> f32 {
-        let br = self.base_regen();
-        self.regen_modifiers()
+        let br = self.get_base_regen();
+        let sm = self
+            .get_static_modifiers()
             .iter()
-            .fold(br, |acc, curr| acc + curr.amt)
+            .fold(0.0, |acc, curr| acc + curr);
+        let tm = self
+            .get_temp_modifiers()
+            .iter()
+            .fold(0.0, |acc, curr| acc + curr.amt);
+        br + sm + tm
     }
 }
 
 macro_rules! regenerator_impl {
     ($t:ty) => {
         impl Regenerator for $t {
-            fn base_regen(&mut self) -> f32 {
-                self._base_regen
+            fn get_base_regen(&mut self) -> f32 {
+                self.base_regen
             }
 
-            fn regen_modifiers(&mut self) -> &mut Vec<RegenModifier> {
-                &mut self._regen_modifiers
+            fn get_static_modifiers(&mut self) -> &mut Vec<f32> {
+                &mut self.static_modifiers
+            }
+
+            fn get_temp_modifiers(&mut self) -> &mut Vec<TimedModifier> {
+                &mut self.temp_modifiers
             }
 
             fn do_regen(&mut self) {
@@ -128,20 +145,22 @@ macro_rules! modify_value {
 pub struct Health {
     pub value: f32,
     pub max_value: f32,
-    _base_regen: f32,
-    _regen_modifiers: Vec<RegenModifier>,
+    base_regen: f32,
+    static_modifiers: Vec<f32>,
+    temp_modifiers: Vec<TimedModifier>,
 }
 
 regenerator_impl!(Health);
 modify_value!(Health);
 
 impl Health {
-    fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
+    fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
         Self {
             value,
             max_value,
-            _base_regen,
-            _regen_modifiers: Vec::new(),
+            base_regen,
+            static_modifiers: Vec::new(),
+            temp_modifiers: Vec::new(),
         }
     }
 }
@@ -150,31 +169,33 @@ impl Health {
 pub struct Stamina {
     pub value: f32,
     pub max_value: f32,
-    _base_regen: f32,
-    _regen_modifiers: Vec<RegenModifier>,
+    base_regen: f32,
+    static_modifiers: Vec<f32>,
+    temp_modifiers: Vec<TimedModifier>,
 }
 
 regenerator_impl!(Stamina);
 modify_value!(Stamina);
 
 impl Stamina {
-    fn new(value: f32, max_value: f32, _base_regen: f32) -> Self {
+    fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
         Self {
             value,
             max_value,
-            _base_regen,
-            _regen_modifiers: Vec::new(),
+            base_regen,
+            static_modifiers: Vec::new(),
+            temp_modifiers: Vec::new(),
         }
     }
 }
 
 #[derive(Clone, Copy)]
-struct RegenModifier {
+struct TimedModifier {
     amt: f32,
     counter: IncrCounter,
 }
 
-impl RegenModifier {
+impl TimedModifier {
     fn new(amt: f32, durr: u32) -> Self {
         Self {
             amt,
@@ -350,14 +371,14 @@ fn change_player_speed(
 
 fn health_regen(mut health_query: Query<&mut Health>) {
     for mut health in health_query.iter_mut() {
-        health.tick_all_regen_modifiers();
+        health.tick_temp_modifiers();
         health.do_regen();
     }
 }
 
 fn stamina_regen(mut stamina_query: Query<&mut Stamina>) {
     for mut stamina in stamina_query.iter_mut() {
-        stamina.tick_all_regen_modifiers();
+        stamina.tick_temp_modifiers();
         stamina.do_regen();
     }
 }
@@ -376,9 +397,9 @@ fn player_stamina_while_sprinting(
     if player_stamina.value > 0.0 {
         player_stamina.value = _max(player_stamina.value - 1.0, 0.0);
         let regen = -player_stamina.get_regen();
-        player_stamina.add_regen_modifier(regen, 1);
+        player_stamina.add_temp_modifier(regen, 1);
     } else {
         next_player_state.set(PlayerState::Walking);
-        player_stamina.add_regen_modifier(-10_000.0, 90);
+        player_stamina.add_temp_modifier(-10_000.0, 90);
     }
 }
