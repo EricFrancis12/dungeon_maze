@@ -88,7 +88,7 @@ pub struct HealStamina(pub f32, pub Entity);
 pub struct Speed(pub f32);
 
 // TODO: create derive macro for Regenerator
-trait Regenerator {
+pub trait Regenerator {
     fn get_base_regen(&mut self) -> f32;
     fn get_static_modifiers(&mut self) -> &mut Vec<f32>;
     fn get_temp_modifiers(&mut self) -> &mut Vec<TempAmt>;
@@ -128,11 +128,11 @@ macro_rules! regenerator_impl {
             }
 
             fn get_static_modifiers(&mut self) -> &mut Vec<f32> {
-                &mut self.static_modifiers
+                &mut self.static_regen_modifiers
             }
 
             fn get_temp_modifiers(&mut self) -> &mut Vec<TempAmt> {
-                &mut self.temp_modifiers
+                &mut self.temp_regen_modifiers
             }
 
             fn do_regen(&mut self) {
@@ -226,8 +226,8 @@ pub struct Health {
     pub value: f32,
     pub max_value: f32,
     base_regen: f32,
-    static_modifiers: Vec<f32>,
-    temp_modifiers: Vec<TempAmt>,
+    static_regen_modifiers: Vec<f32>,
+    temp_regen_modifiers: Vec<TempAmt>,
     heal_modifier: HealHealthModifier,
 }
 
@@ -240,8 +240,8 @@ impl Health {
             value,
             max_value,
             base_regen,
-            static_modifiers: Vec::new(),
-            temp_modifiers: Vec::new(),
+            static_regen_modifiers: Vec::new(),
+            temp_regen_modifiers: Vec::new(),
             heal_modifier: HealHealthModifier::new(),
         }
     }
@@ -252,8 +252,8 @@ pub struct Stamina {
     pub value: f32,
     pub max_value: f32,
     base_regen: f32,
-    static_modifiers: Vec<f32>,
-    temp_modifiers: Vec<TempAmt>,
+    static_regen_modifiers: Vec<f32>,
+    temp_regen_modifiers: Vec<TempAmt>,
     heal_modifier: HealStaminaModifier,
 }
 
@@ -266,8 +266,8 @@ impl Stamina {
             value,
             max_value,
             base_regen,
-            static_modifiers: Vec::new(),
-            temp_modifiers: Vec::new(),
+            static_regen_modifiers: Vec::new(),
+            temp_regen_modifiers: Vec::new(),
             heal_modifier: HealStaminaModifier::new(),
         }
     }
@@ -350,7 +350,7 @@ impl DmgResist {
 }
 
 #[derive(Clone, Copy)]
-struct TempAmt {
+pub struct TempAmt {
     amt: f32,
     counter: IncrCounter,
 }
@@ -608,11 +608,13 @@ fn handle_take_damage(
                     | DmgType::Ice
                     | DmgType::Poison => {
                         h.as_mut().map(|health| {
+                            // TODO: have dmg_resist affect a percentage of amt instead subtracting a flat value?
                             health.subtract(amt - &dmg_resist.get_resist(&dmg_type));
                         });
                     }
                     DmgType::Stamina => {
                         s.as_mut().map(|stamina| {
+                            // TODO: have dmg_resist affect a percentage of amt instead subtracting a flat value?
                             stamina.subtract(*amt - &dmg_resist.get_resist(&dmg_type));
                         });
                     }
@@ -634,6 +636,7 @@ fn handle_heal_health(
     for event in event_reader.read() {
         if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1) {
             let total_modifier = health.heal_modifier.get_total();
+            // TODO: have total_modifier affect a percentage of event.0 instead adding a flat value?
             health.add(event.0 + total_modifier);
         } else {
             should_not_happen!(
@@ -651,6 +654,7 @@ fn handle_heal_stamina(
     for event in event_reader.read() {
         if let Some((_, mut stamina)) = stamina_query.iter_mut().find(|(e, _)| *e == event.1) {
             let total_modifier = stamina.heal_modifier.get_total();
+            // TODO: have total_modifier affect a percentage of event.0 instead adding a flat value?
             stamina.add(event.0 + total_modifier);
         } else {
             should_not_happen!(

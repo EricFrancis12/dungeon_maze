@@ -44,8 +44,12 @@ pub enum ItemName {
     Flint,
     HealthPotion,
     StaminaPotion,
+    HealthRegenPotion,
+    StaminaRegenPotion,
     HealthPoison,
     StaminaPoison,
+    HealthRegenPoison,
+    StaminaRegenPoison,
 }
 
 impl ItemName {
@@ -58,9 +62,14 @@ impl ItemName {
     pub fn item_type(&self) -> ItemType {
         match self {
             Self::Coal | Self::Cotton | Self::Flint => ItemType::RawMaterial,
-            Self::HealthPotion | Self::StaminaPotion | Self::HealthPoison | Self::StaminaPoison => {
-                ItemType::Consumable
-            }
+            Self::HealthPotion
+            | Self::StaminaPotion
+            | Self::HealthRegenPotion
+            | Self::StaminaRegenPotion
+            | Self::HealthPoison
+            | Self::StaminaPoison
+            | Self::HealthRegenPoison
+            | Self::StaminaRegenPoison => ItemType::Consumable,
         }
     }
 
@@ -79,8 +88,12 @@ impl ItemName {
                 Self::Flint => asset_server.load("images/flint.png"),
                 Self::HealthPotion => asset_server.load("images/health_potion.png"),
                 Self::StaminaPotion => asset_server.load("images/stamina_potion.png"),
+                Self::HealthRegenPotion => asset_server.load("images/health_regen_potion.png"),
+                Self::StaminaRegenPotion => asset_server.load("images/stamina_regen_potion.png"),
                 Self::HealthPoison => asset_server.load("images/health_poison.png"),
                 Self::StaminaPoison => asset_server.load("images/stamina_poison.png"),
+                Self::HealthRegenPoison => asset_server.load("images/health_regen_poison.png"),
+                Self::StaminaRegenPoison => asset_server.load("images/stamina_regen_poison.png"),
             },
             ..default()
         }
