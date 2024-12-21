@@ -46,6 +46,8 @@ impl Plugin for PlayerPlugin {
                     temp_health_regen,
                     temp_stamina_regen,
                     temp_dmg_resists,
+                    temp_heal_health_modifiers,
+                    temp_heal_stamina_modifiers,
                     player_stamina_while_sprinting,
                     handle_take_damage,
                     handle_heal_health,
@@ -88,11 +90,8 @@ pub struct Speed(pub f32);
 // TODO: create derive macro for Regenerator
 trait Regenerator {
     fn get_base_regen(&mut self) -> f32;
-
     fn get_static_modifiers(&mut self) -> &mut Vec<f32>;
-
-    fn get_temp_modifiers(&mut self) -> &mut Vec<TimedModifier>;
-
+    fn get_temp_modifiers(&mut self) -> &mut Vec<TempAmt>;
     fn do_regen(&mut self);
 
     fn _add_static_modifier(&mut self, amt: f32) {
@@ -100,12 +99,11 @@ trait Regenerator {
     }
 
     fn add_temp_modifier(&mut self, amt: f32, durr: u32) {
-        self.get_temp_modifiers()
-            .push(TimedModifier::new(amt, durr));
+        self.get_temp_modifiers().push(TempAmt::new(amt, durr));
     }
 
     fn tick_temp_modifiers(&mut self) {
-        self.get_temp_modifiers().retain_mut(|m| m.tick() != 0);
+        self.get_temp_modifiers().retain_mut(|tm| tm.tick() != 0);
     }
 
     fn get_regen(&mut self) -> f32 {
@@ -133,7 +131,7 @@ macro_rules! regenerator_impl {
                 &mut self.static_modifiers
             }
 
-            fn get_temp_modifiers(&mut self) -> &mut Vec<TimedModifier> {
+            fn get_temp_modifiers(&mut self) -> &mut Vec<TempAmt> {
                 &mut self.temp_modifiers
             }
 
@@ -160,13 +158,77 @@ macro_rules! modify_value {
     };
 }
 
+trait HealModifier {
+    fn new() -> Self;
+    fn get_base_total(&self) -> f32;
+    fn get_static_total(&self) -> f32;
+    fn get_temp_total(&self) -> f32;
+    fn get_total(&self) -> f32;
+    fn tick_temp_modifiers(&mut self);
+}
+
+macro_rules! heal_modifier_impl {
+    ($t:ty) => {
+        impl HealModifier for $t {
+            fn new() -> Self {
+                Self {
+                    base_modifiers: Vec::new(),
+                    static_modifiers: Vec::new(),
+                    temp_modifiers: Vec::new(),
+                }
+            }
+
+            fn get_base_total(&self) -> f32 {
+                self.base_modifiers.iter().fold(0.0, |acc, curr| acc + curr)
+            }
+
+            fn get_static_total(&self) -> f32 {
+                self.static_modifiers
+                    .iter()
+                    .fold(0.0, |acc, curr| acc + curr)
+            }
+
+            fn get_temp_total(&self) -> f32 {
+                self.temp_modifiers
+                    .iter()
+                    .fold(0.0, |acc, curr| acc + curr.amt)
+            }
+
+            fn get_total(&self) -> f32 {
+                self.get_base_total() + self.get_static_total() + self.get_temp_total()
+            }
+
+            fn tick_temp_modifiers(&mut self) {
+                self.temp_modifiers.retain_mut(|tm| tm.tick() != 0);
+            }
+        }
+    };
+}
+
+pub struct HealHealthModifier {
+    base_modifiers: Vec<f32>,
+    static_modifiers: Vec<f32>,
+    temp_modifiers: Vec<TempAmt>,
+}
+
+heal_modifier_impl!(HealHealthModifier);
+
+pub struct HealStaminaModifier {
+    base_modifiers: Vec<f32>,
+    static_modifiers: Vec<f32>,
+    temp_modifiers: Vec<TempAmt>,
+}
+
+heal_modifier_impl!(HealStaminaModifier);
+
 #[derive(Component)]
 pub struct Health {
     pub value: f32,
     pub max_value: f32,
     base_regen: f32,
     static_modifiers: Vec<f32>,
-    temp_modifiers: Vec<TimedModifier>,
+    temp_modifiers: Vec<TempAmt>,
+    heal_modifier: HealHealthModifier,
 }
 
 regenerator_impl!(Health);
@@ -180,6 +242,7 @@ impl Health {
             base_regen,
             static_modifiers: Vec::new(),
             temp_modifiers: Vec::new(),
+            heal_modifier: HealHealthModifier::new(),
         }
     }
 }
@@ -190,7 +253,8 @@ pub struct Stamina {
     pub max_value: f32,
     base_regen: f32,
     static_modifiers: Vec<f32>,
-    temp_modifiers: Vec<TimedModifier>,
+    temp_modifiers: Vec<TempAmt>,
+    heal_modifier: HealStaminaModifier,
 }
 
 regenerator_impl!(Stamina);
@@ -204,6 +268,7 @@ impl Stamina {
             base_regen,
             static_modifiers: Vec::new(),
             temp_modifiers: Vec::new(),
+            heal_modifier: HealStaminaModifier::new(),
         }
     }
 }
@@ -223,7 +288,7 @@ pub enum DmgType {
 struct DmgResist {
     base_resists: HashMap<DmgType, Vec<f32>>,
     static_resists: HashMap<DmgType, Vec<f32>>,
-    temp_resists: HashMap<DmgType, Vec<TimedModifier>>,
+    temp_resists: HashMap<DmgType, Vec<TempAmt>>,
 }
 
 impl Default for DmgResist {
@@ -240,7 +305,7 @@ impl DmgResist {
                 return acc;
             });
 
-        let temp_resists: HashMap<DmgType, Vec<TimedModifier>> =
+        let temp_resists: HashMap<DmgType, Vec<TempAmt>> =
             DmgType::iter().fold(HashMap::new(), |mut acc, curr| {
                 acc.insert(curr, Vec::new());
                 return acc;
@@ -284,23 +349,13 @@ impl DmgResist {
     }
 }
 
-#[derive(Component)]
-pub struct HealHealthModifier {
-    // TODO: ...
-}
-
-#[derive(Component)]
-pub struct HealStaminaModifier {
-    // TODO: ...
-}
-
 #[derive(Clone, Copy)]
-struct TimedModifier {
+struct TempAmt {
     amt: f32,
     counter: IncrCounter,
 }
 
-impl TimedModifier {
+impl TempAmt {
     fn new(amt: f32, durr: u32) -> Self {
         Self {
             amt,
@@ -450,9 +505,9 @@ fn toggle_player_sprinting(
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
-    // using just_pressed() here instead of pressed() because if
+    // Using just_pressed() here instead of pressed() because if
     // the player runs out of stamina, they are forced to release
-    // ShiftLeft and press it again to resume sprinting
+    // ShiftLeft and press it again to resume sprinting.
     if keys.just_pressed(KeyCode::ShiftLeft) && *player_state.get() == PlayerState::Walking {
         let player_stamina = player_query.get_single().unwrap();
         if player_stamina.value > player_stamina.max_value * 0.1 {
@@ -492,6 +547,18 @@ fn temp_stamina_regen(mut stamina_query: Query<&mut Stamina>) {
 fn temp_dmg_resists(mut dmg_resists_query: Query<&mut DmgResist>) {
     for mut dmg_resist in dmg_resists_query.iter_mut() {
         dmg_resist.tick_temp_resists();
+    }
+}
+
+fn temp_heal_health_modifiers(mut health_query: Query<&mut Health>) {
+    for mut health in health_query.iter_mut() {
+        health.heal_modifier.tick_temp_modifiers();
+    }
+}
+
+fn temp_heal_stamina_modifiers(mut stamina_query: Query<&mut Stamina>) {
+    for mut stamina in stamina_query.iter_mut() {
+        stamina.heal_modifier.tick_temp_modifiers();
     }
 }
 
@@ -562,11 +629,12 @@ fn handle_take_damage(
 
 fn handle_heal_health(
     mut event_reader: EventReader<HealHealth>,
-    mut health_query: Query<(Entity, &mut Health, Option<&HealHealthModifier>)>,
+    mut health_query: Query<(Entity, &mut Health)>,
 ) {
     for event in event_reader.read() {
-        if let Some((_, mut health, h)) = health_query.iter_mut().find(|(e, _, _)| *e == event.1) {
-            health.add(event.0);
+        if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1) {
+            let total_modifier = health.heal_modifier.get_total();
+            health.add(event.0 + total_modifier);
         } else {
             should_not_happen!(
                 "received HealHealth event on entity that does not exist: {}",
@@ -578,12 +646,12 @@ fn handle_heal_health(
 
 fn handle_heal_stamina(
     mut event_reader: EventReader<HealStamina>,
-    mut stamina_query: Query<(Entity, &mut Stamina, Option<&HealStaminaModifier>)>,
+    mut stamina_query: Query<(Entity, &mut Stamina)>,
 ) {
     for event in event_reader.read() {
-        if let Some((_, mut stamina, s)) = stamina_query.iter_mut().find(|(e, _, _)| *e == event.1)
-        {
-            stamina.add(event.0);
+        if let Some((_, mut stamina)) = stamina_query.iter_mut().find(|(e, _)| *e == event.1) {
+            let total_modifier = stamina.heal_modifier.get_total();
+            stamina.add(event.0 + total_modifier);
         } else {
             should_not_happen!(
                 "received HealStamina event on entity that does not exist: {}",
