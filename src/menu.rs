@@ -1,8 +1,9 @@
 use crate::{
     cursor::{CursorFollower, CursorPosition},
     inventory::{Inventory, InventoryChanged, ItemName, ItemUsed},
-    player::{Health, Player, Stamina},
+    player::{DmgType, HealHealth, HealStamina, Health, Player, Stamina, TakeDamage},
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
+    should_not_happen,
     utils::entity::get_n_parent,
 };
 
@@ -626,37 +627,51 @@ fn use_inventory_item(
 
 fn handle_item_used(
     mut event_reader: EventReader<ItemUsed>,
-    mut health_query: Query<(Entity, &mut Health)>,
-    mut stamina_query: Query<(Entity, &mut Stamina)>,
+    mut heal_health_event_writer: EventWriter<HealHealth>,
+    mut heal_stamina_event_writer: EventWriter<HealStamina>,
+    mut take_dmg_event_writer: EventWriter<TakeDamage>,
+    mut health_query: Query<Entity, With<Health>>,
+    mut stamina_query: Query<Entity, With<Stamina>>,
 ) {
     for event in event_reader.read() {
         match event.0.name {
-            ItemName::HealthPotion => {
-                if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1)
-                {
-                    health.add(30.0);
+            ItemName::HealthPotion => match health_query.iter_mut().find(|e| *e == event.1) {
+                Some(e) => {
+                    heal_health_event_writer.send(HealHealth(30.0, e));
                 }
-            }
-            ItemName::StaminaPotion => {
-                if let Some((_, mut stamina)) =
-                    stamina_query.iter_mut().find(|(e, _)| *e == event.1)
-                {
-                    stamina.add(30.0);
+                None => {
+                    should_not_happen!("using health potion on entity w/o health component");
                 }
-            }
-            ItemName::HealthPoison => {
-                if let Some((_, mut health)) = health_query.iter_mut().find(|(e, _)| *e == event.1)
-                {
-                    health.subtract(30.0);
+            },
+            ItemName::StaminaPotion => match health_query.iter_mut().find(|e| *e == event.1) {
+                Some(e) => {
+                    heal_stamina_event_writer.send(HealStamina(30.0, e));
                 }
-            }
-            ItemName::StaminaPoison => {
-                if let Some((_, mut stamina)) =
-                    stamina_query.iter_mut().find(|(e, _)| *e == event.1)
-                {
-                    stamina.subtract(30.0);
+                None => {
+                    should_not_happen!("using stamina potion on entity w/o stamina component");
                 }
-            }
+            },
+            ItemName::HealthPoison => match health_query.iter_mut().find(|e| *e == event.1) {
+                Some(e) => {
+                    take_dmg_event_writer.send(TakeDamage(vec![(DmgType::Poison, 30.0)], e));
+                }
+                None => {
+                    should_not_happen!("using health poison on entity w/o health component");
+                }
+            },
+            ItemName::StaminaPoison => match stamina_query.iter_mut().find(|e| *e == event.1) {
+                Some(e) => {
+                    take_dmg_event_writer.send(TakeDamage(vec![(DmgType::Stamina, 30.0)], e));
+                }
+                None => {
+                    should_not_happen!("using stamina poison on entity w/o stamina component");
+                }
+            },
+            // TODO: ...
+            // ItemName::HealthRegenPotion
+            // ItemName::StaminaRegenPotion
+            // ItemName::HealthRegenPoison
+            // ItemName::StaminaRegenPoison
             _ => {}
         }
     }

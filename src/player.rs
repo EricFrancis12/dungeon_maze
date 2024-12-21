@@ -1,13 +1,16 @@
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
     camera::MainCamera,
+    should_not_happen,
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
-use std::f32::consts::PI;
+use std::{collections::HashMap, f32::consts::PI};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 const PLAYER_COLLIDER_HX: f32 = 0.4;
 const PLAYER_COLLIDER_HY: f32 = 0.85;
@@ -30,6 +33,8 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Speed>()
+            .add_event::<TakeDamage>()
+            .add_event::<HealHealth>()
             .init_state::<PlayerState>()
             .add_systems(Startup, spawn_player)
             .add_systems(
@@ -37,9 +42,13 @@ impl Plugin for PlayerPlugin {
                 (
                     toggle_player_sprinting,
                     player_ground_movement,
-                    health_regen,
-                    stamina_regen,
+                    temp_health_regen,
+                    temp_stamina_regen,
+                    temp_dmg_resists,
                     player_stamina_while_sprinting,
+                    handle_take_damage,
+                    handle_heal_health,
+                    handle_heal_stamina,
                 ),
             )
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
@@ -62,6 +71,15 @@ impl PlayerState {
         *self == Self::Walking || *self == Self::Sprinting
     }
 }
+
+#[derive(Event)]
+pub struct TakeDamage(pub Vec<(DmgType, f32)>, pub Entity);
+
+#[derive(Event)]
+pub struct HealHealth(pub f32, pub Entity);
+
+#[derive(Event)]
+pub struct HealStamina(pub f32, pub Entity);
 
 #[derive(Component, Reflect)]
 pub struct Speed(pub f32);
@@ -189,6 +207,92 @@ impl Stamina {
     }
 }
 
+#[derive(Clone, EnumIter, Eq, Hash, PartialEq)]
+pub enum DmgType {
+    Blunt,
+    Slash,
+    Pierce,
+    Fire,
+    Ice,
+    Poison,
+    Stamina,
+}
+
+#[derive(Component)]
+struct DmgResist {
+    base_resists: HashMap<DmgType, Vec<f32>>,
+    static_resists: HashMap<DmgType, Vec<f32>>,
+    temp_resists: HashMap<DmgType, Vec<TimedModifier>>,
+}
+
+impl Default for DmgResist {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DmgResist {
+    fn new() -> Self {
+        let hm: HashMap<DmgType, Vec<f32>> =
+            DmgType::iter().fold(HashMap::new(), |mut acc, curr| {
+                acc.insert(curr, Vec::new());
+                return acc;
+            });
+
+        let temp_resists: HashMap<DmgType, Vec<TimedModifier>> =
+            DmgType::iter().fold(HashMap::new(), |mut acc, curr| {
+                acc.insert(curr, Vec::new());
+                return acc;
+            });
+
+        Self {
+            base_resists: hm.clone(),
+            static_resists: hm.clone(),
+            temp_resists,
+        }
+    }
+
+    fn get_base_resist(&self, dmg_type: &DmgType) -> f32 {
+        self.base_resists[&dmg_type]
+            .iter()
+            .fold(0.0, |acc, curr| acc + curr)
+    }
+
+    fn get_static_resist(&self, dmg_type: &DmgType) -> f32 {
+        self.static_resists[&dmg_type]
+            .iter()
+            .fold(0.0, |acc, curr| acc + curr)
+    }
+
+    fn get_temp_resist(&self, dmg_type: &DmgType) -> f32 {
+        self.temp_resists[&dmg_type]
+            .iter()
+            .fold(0.0, |acc, curr| acc + curr.amt)
+    }
+
+    fn get_resist(&self, dmg_type: &DmgType) -> f32 {
+        self.get_base_resist(dmg_type)
+            + self.get_static_resist(dmg_type)
+            + self.get_temp_resist(dmg_type)
+    }
+
+    fn tick_temp_resists(&mut self) {
+        self.temp_resists.iter_mut().for_each(|(_, v)| {
+            v.retain_mut(|tm| tm.tick() != 0);
+        });
+    }
+}
+
+#[derive(Component)]
+pub struct HealHealthModifier {
+    // TODO: ...
+}
+
+#[derive(Component)]
+pub struct HealStaminaModifier {
+    // TODO: ...
+}
+
 #[derive(Clone, Copy)]
 struct TimedModifier {
     amt: f32,
@@ -221,6 +325,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             PLAYER_MAX_STAMINA,
             PLAYER_BASE_STAMINA_REGEN,
         ),
+        DmgResist::new(),
         Speed(PLAYER_WALKING_SPEED),
         RigidBody::Dynamic,
         Velocity::default(),
@@ -369,17 +474,23 @@ fn change_player_speed(
     }
 }
 
-fn health_regen(mut health_query: Query<&mut Health>) {
+fn temp_health_regen(mut health_query: Query<&mut Health>) {
     for mut health in health_query.iter_mut() {
         health.tick_temp_modifiers();
         health.do_regen();
     }
 }
 
-fn stamina_regen(mut stamina_query: Query<&mut Stamina>) {
+fn temp_stamina_regen(mut stamina_query: Query<&mut Stamina>) {
     for mut stamina in stamina_query.iter_mut() {
         stamina.tick_temp_modifiers();
         stamina.do_regen();
+    }
+}
+
+fn temp_dmg_resists(mut dmg_resists_query: Query<&mut DmgResist>) {
+    for mut dmg_resist in dmg_resists_query.iter_mut() {
+        dmg_resist.tick_temp_resists();
     }
 }
 
@@ -401,5 +512,82 @@ fn player_stamina_while_sprinting(
     } else {
         next_player_state.set(PlayerState::Walking);
         player_stamina.add_temp_modifier(-10_000.0, 90);
+    }
+}
+
+fn handle_take_damage(
+    mut event_reader: EventReader<TakeDamage>,
+    mut query: Query<(
+        Entity,
+        Option<&mut Health>,
+        Option<&mut Stamina>,
+        Option<&DmgResist>,
+    )>,
+) {
+    for event in event_reader.read() {
+        if let Some((_, mut h, mut s, dr)) = query.iter_mut().find(|(e, _, _, _)| *e == event.1) {
+            let dmg_resist = match dr {
+                Some(d) => d,
+                None => &DmgResist::new(),
+            };
+
+            for (dmg_type, amt) in &event.0 {
+                match dmg_type {
+                    DmgType::Blunt
+                    | DmgType::Slash
+                    | DmgType::Pierce
+                    | DmgType::Fire
+                    | DmgType::Ice
+                    | DmgType::Poison => {
+                        h.as_mut().map(|health| {
+                            health.subtract(amt - &dmg_resist.get_resist(&dmg_type));
+                        });
+                    }
+                    DmgType::Stamina => {
+                        s.as_mut().map(|stamina| {
+                            stamina.subtract(*amt - &dmg_resist.get_resist(&dmg_type));
+                        });
+                    }
+                }
+            }
+        } else {
+            should_not_happen!(
+                "received TakeDamage event on entity that does not exist: {}",
+                event.1,
+            );
+        }
+    }
+}
+
+fn handle_heal_health(
+    mut event_reader: EventReader<HealHealth>,
+    mut health_query: Query<(Entity, &mut Health, Option<&HealHealthModifier>)>,
+) {
+    for event in event_reader.read() {
+        if let Some((_, mut health, h)) = health_query.iter_mut().find(|(e, _, _)| *e == event.1) {
+            health.add(event.0);
+        } else {
+            should_not_happen!(
+                "received HealHealth event on entity that does not exist: {}",
+                event.1,
+            );
+        }
+    }
+}
+
+fn handle_heal_stamina(
+    mut event_reader: EventReader<HealStamina>,
+    mut stamina_query: Query<(Entity, &mut Stamina, Option<&HealStaminaModifier>)>,
+) {
+    for event in event_reader.read() {
+        if let Some((_, mut stamina, s)) = stamina_query.iter_mut().find(|(e, _, _)| *e == event.1)
+        {
+            stamina.add(event.0);
+        } else {
+            should_not_happen!(
+                "received HealStamina event on entity that does not exist: {}",
+                event.1,
+            );
+        }
     }
 }
