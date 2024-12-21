@@ -35,6 +35,7 @@ impl Plugin for PlayerPlugin {
         app.register_type::<Speed>()
             .add_event::<TakeDamage>()
             .add_event::<HealHealth>()
+            .add_event::<HealStamina>()
             .init_state::<PlayerState>()
             .add_systems(Startup, spawn_player)
             .add_systems(
