@@ -1,8 +1,5 @@
 use crate::{
-    meshes::{
-        wall_with_door_gap::make_wall_with_door_gap_mesh,
-        wall_with_window_gap::make_wall_with_window_gap_mesh,
-    },
+    meshes::{new_wall_with_door_gap_mesh, new_wall_with_window_gap_mesh},
     world::{CellWall, Side, CELL_SIZE},
 };
 
@@ -96,7 +93,7 @@ pub fn spawn_wall_with_door_gap_bundle(
     material: &Handle<StandardMaterial>,
 ) {
     let (x, y, z, r) = wall_dims(&side);
-    let mesh_handle = meshes.add(make_wall_with_door_gap_mesh());
+    let mesh_handle = meshes.add(new_wall_with_door_gap_mesh());
     let mesh = meshes.get(&mesh_handle).unwrap();
 
     entity_spawner.spawn((
@@ -120,7 +117,7 @@ pub fn spawn_wall_with_window_gap_bundle(
     material: &Handle<StandardMaterial>,
 ) {
     let (x, y, z, r) = wall_dims(&side);
-    let mesh_handle = meshes.add(make_wall_with_window_gap_mesh());
+    let mesh_handle = meshes.add(new_wall_with_window_gap_mesh());
     let mesh = meshes.get(&mesh_handle).unwrap();
 
     entity_spawner.spawn((
