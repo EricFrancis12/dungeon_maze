@@ -22,7 +22,7 @@ pub fn spawn_window_bundle(
     entity_spawner: &mut impl EntitySpawner,
     asset_server: &Res<AssetServer>,
 ) {
-    // TODO: refine door open/close start & end positions for animation:
+    // TODO: refine window open/close start & end positions for animation:
     let (sx, sy, sz, sr, ex, ey, ez, er) = match side {
         Side::Top => (-1.85, 1.5, 0.015, PI / 2.0, -1.5, 1.5, -0.5, PI),
         Side::Bottom => (1.85, 1.5, -0.015, -PI / 2.0, 1.5, 1.5, 0.5, 0.0),

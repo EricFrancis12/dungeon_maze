@@ -32,16 +32,18 @@ impl Plugin for InventoryPlugin {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ItemType {
     Consumable,
-    Misc,
     RawMaterial,
     Weapon,
 }
 
 #[derive(Clone, Component, Debug, Deserialize, Display, EnumIter, Eq, PartialEq, Serialize)]
 pub enum ItemName {
+    // Raw materials
     Coal,
     Cotton,
     Flint,
+
+    // Consumables
     HealthPotion,
     StaminaPotion,
     HealthRegenPotion,
@@ -50,6 +52,9 @@ pub enum ItemName {
     StaminaPoison,
     HealthRegenPoison,
     StaminaRegenPoison,
+
+    // Weapons
+    Broadsword,
 }
 
 impl ItemName {
@@ -70,13 +75,21 @@ impl ItemName {
             | Self::StaminaPoison
             | Self::HealthRegenPoison
             | Self::StaminaRegenPoison => ItemType::Consumable,
+            Self::Broadsword => ItemType::Weapon,
         }
     }
 
     pub fn max_amt(&self) -> u16 {
         match self.item_type() {
-            ItemType::Consumable | ItemType::Misc | ItemType::RawMaterial => 64,
+            ItemType::Consumable | ItemType::RawMaterial => 64,
             ItemType::Weapon => 1,
+        }
+    }
+
+    pub fn is_equipable_at(&self, _: &EquipmentSlotName) -> bool {
+        match self.item_type() {
+            ItemType::Weapon => true,
+            ItemType::Consumable | ItemType::RawMaterial => false,
         }
     }
 
@@ -94,6 +107,7 @@ impl ItemName {
                 Self::StaminaPoison => asset_server.load("images/stamina_poison.png"),
                 Self::HealthRegenPoison => asset_server.load("images/health_regen_poison.png"),
                 Self::StaminaRegenPoison => asset_server.load("images/stamina_regen_poison.png"),
+                Self::Broadsword => asset_server.load("images/broadsword.png"),
             },
             ..default()
         }
@@ -169,16 +183,51 @@ impl Item {
             _ => (None, false),
         }
     }
+
+    pub fn is_equipable_at(&self, name: &EquipmentSlotName) -> bool {
+        self.name.is_equipable_at(name)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Display, EnumIter, Eq, Serialize, PartialEq)]
+pub enum EquipmentSlotName {
+    LeftHand,
+    RightHand,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Equipment {
+    left_hand: Option<Item>,
+    right_hand: Option<Item>,
+}
+
+impl Equipment {
+    pub fn at(&self, name: &EquipmentSlotName) -> &Option<Item> {
+        match name {
+            EquipmentSlotName::LeftHand => &self.left_hand,
+            EquipmentSlotName::RightHand => &self.right_hand,
+        }
+    }
+
+    fn at_mut(&mut self, name: &EquipmentSlotName) -> &mut Option<Item> {
+        match name {
+            EquipmentSlotName::LeftHand => &mut self.left_hand,
+            EquipmentSlotName::RightHand => &mut self.right_hand,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Resource, Serialize)]
-pub struct Inventory(pub [Option<Item>; INVENTORY_MAX_SIZE]);
+pub struct Inventory {
+    pub slots: [Option<Item>; INVENTORY_MAX_SIZE],
+    pub equipment: Equipment,
+}
 
 impl Inventory {
     fn insert(&mut self, item: Item) -> Option<Item> {
         let mut temp_item = item.clone();
 
-        for slot in self.0.iter_mut() {
+        for slot in self.slots.iter_mut() {
             if let Some(i) = slot {
                 if i.name == item.name {
                     let rem_item = i.merge(temp_item);
@@ -207,8 +256,26 @@ impl Inventory {
         Some(temp_item)
     }
 
+    pub fn merge_swap_at(&mut self, a: usize, b: usize) {
+        let slot_a_clone = self.slots[a].clone();
+
+        match (slot_a_clone, &mut self.slots[b]) {
+            (Some(item_a), Some(item_b)) => {
+                // Check if the two stacks have the same ItemName, and if so merge them.
+                if item_a.name == item_b.name {
+                    let rem_items = item_b.merge(item_a);
+                    self.slots[a] = rem_items.to_owned();
+                    return;
+                }
+            }
+            _ => (),
+        };
+
+        self.slots.swap(a, b)
+    }
+
     pub fn use_at(&mut self, i: usize) -> (Option<Item>, bool) {
-        if let Some(slot) = self.0.get_mut(i) {
+        if let Some(slot) = self.slots.get_mut(i) {
             if let Some(item) = slot {
                 let result = item._use();
                 if item.amt == 0 {
@@ -220,6 +287,23 @@ impl Inventory {
             should_not_happen!("indexing inventory out of bounds: {}", i);
         }
         (None, false)
+    }
+
+    pub fn equip_at(&mut self, i: usize, name: &EquipmentSlotName) -> bool {
+        if let Some(slot) = self.slots.get_mut(i) {
+            if let Some(item) = slot {
+                if item.is_equipable_at(&name) {
+                    let equipment_slot = self.equipment.at_mut(&name);
+                    let temp = equipment_slot.clone();
+                    *equipment_slot = Some(item.clone());
+                    *slot = temp;
+                    return true;
+                }
+            }
+        } else {
+            should_not_happen!("indexing inventory out of bounds: {}", i);
+        }
+        false
     }
 }
 
@@ -305,7 +389,7 @@ fn drop_dragged_item(
             if !rel_cursor_position.mouse_over() {
                 if let Some(prev_dragging_inventory_slot) = &event.exited {
                     if let Some(i) = prev_dragging_inventory_slot.0 {
-                        if let Some(slot) = inventory.0.get_mut(i) {
+                        if let Some(slot) = inventory.slots.get_mut(i) {
                             if let Some(item) = slot {
                                 pdi_event_writer.send(PlayerDroppedItem(item.clone()));
                                 inv_event_writer.send(InventoryChanged);

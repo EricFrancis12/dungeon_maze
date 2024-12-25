@@ -1,6 +1,6 @@
 use crate::{
     cursor::{CursorFollower, CursorPosition},
-    inventory::{Inventory, InventoryChanged, ItemName, ItemUsed},
+    inventory::{EquipmentSlotName, Inventory, InventoryChanged, ItemName, ItemUsed},
     player::{DmgType, HealHealth, HealStamina, Health, Player, Regenerator, Stamina, TakeDamage},
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
     should_not_happen,
@@ -8,7 +8,8 @@ use crate::{
 };
 
 use bevy::{prelude::*, ui::RelativeCursorPosition};
-use std::fmt::{Formatter, Result};
+use std::fmt;
+use strum::IntoEnumIterator;
 
 pub struct MenuPlugin;
 
@@ -29,6 +30,7 @@ impl Plugin for MenuPlugin {
                     change_render_dist_buttons_background_color,
                     update_visible_on_parent_hover,
                     start_drag_inventory_item,
+                    start_drag_equipment_item,
                     stop_drag_inventory_item,
                     use_inventory_item,
                     handle_item_used,
@@ -47,8 +49,8 @@ enum MenuTab {
     Settings,
 }
 
-impl std::fmt::Display for MenuTab {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+impl fmt::Display for MenuTab {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Inventory => write!(f, "Inventory"),
             Self::Settings => write!(f, "Settings"),
@@ -76,6 +78,9 @@ struct RenderDistButton(u32);
 
 #[derive(Component)]
 struct InventorySlot(usize);
+
+#[derive(Component)]
+struct EquipmentSlot(EquipmentSlotName);
 
 #[derive(Component)]
 struct InventorySlotImage(usize);
@@ -274,7 +279,7 @@ fn spawn_inventory_menu_content(
         ..default()
     });
 
-    // Create the grid container
+    // Inventory slots
     child_builder
         .spawn(NodeBundle {
             style: Style {
@@ -288,7 +293,7 @@ fn spawn_inventory_menu_content(
             ..default()
         })
         .with_children(|parent| {
-            for (i, slot) in inventory.0.iter().enumerate() {
+            for (i, slot) in inventory.slots.iter().enumerate() {
                 let mut entity_commands = parent.spawn((
                     InventorySlot(i),
                     RelativeCursorPosition::default(),
@@ -314,6 +319,127 @@ fn spawn_inventory_menu_content(
                     entity_commands.with_children(|grandparent| {
                         grandparent.spawn((
                             InventorySlotImage(i),
+                            RelativeCursorPosition::default(),
+                            ImageBundle {
+                                image: item.ui_image(asset_server),
+                                style: Style {
+                                    height: Val::Px(40.0),
+                                    width: Val::Px(40.0),
+                                    ..default()
+                                },
+                                ..default()
+                            },
+                        ));
+
+                        grandparent.spawn((
+                            VisibleOnParentHover::default(),
+                            TextBundle {
+                                visibility: Visibility::Hidden,
+                                text: Text {
+                                    sections: vec![TextSection::new(
+                                        item.name.to_string(),
+                                        TextStyle {
+                                            font_size: 22.0,
+                                            color: Color::WHITE,
+                                            ..default()
+                                        },
+                                    )],
+                                    ..default()
+                                },
+                                style: Style {
+                                    position_type: PositionType::Absolute,
+                                    top: Val::Percent(100.0),
+                                    right: Val::Percent(0.0),
+                                    ..default()
+                                },
+                                background_color: Color::BLACK.into(),
+                                z_index: ZIndex::Global(10),
+                                ..default()
+                            },
+                        ));
+
+                        if item.amt > 1 {
+                            grandparent.spawn(TextBundle {
+                                text: Text {
+                                    sections: vec![TextSection::new(
+                                        item.amt.to_string(),
+                                        TextStyle {
+                                            font_size: 22.0,
+                                            color: Color::WHITE,
+                                            ..default()
+                                        },
+                                    )],
+                                    ..default()
+                                },
+                                style: Style {
+                                    position_type: PositionType::Absolute,
+                                    bottom: Val::Px(2.0),
+                                    right: Val::Px(2.0),
+                                    ..default()
+                                },
+                                background_color: Color::BLACK.into(),
+                                ..default()
+                            });
+                        }
+                    });
+                }
+            }
+        });
+
+    child_builder.spawn(TextBundle {
+        text: Text {
+            sections: vec![TextSection::new(
+                "Equipment",
+                TextStyle {
+                    font_size: 20.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            )],
+            ..default()
+        },
+        ..default()
+    });
+
+    // Equipment slots
+    child_builder
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                flex_wrap: FlexWrap::Wrap,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                padding: UiRect::all(Val::Px(10.0)),
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            for name in EquipmentSlotName::iter() {
+                let mut entity_commands = parent.spawn((
+                    EquipmentSlot(name.clone()),
+                    RelativeCursorPosition::default(),
+                    ButtonBundle {
+                        style: Style {
+                            position_type: PositionType::Relative,
+                            display: Display::Flex,
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            height: Val::Px(50.0),
+                            width: Val::Px(50.0),
+                            margin: UiRect::all(Val::Px(5.0)),
+                            border: UiRect::all(Val::Px(2.0)),
+                            ..default()
+                        },
+                        border_color: Color::WHITE.into(),
+                        ..default()
+                    },
+                    Name::new(format!("Equipment slot {}", name)),
+                ));
+
+                if let Some(item) = inventory.equipment.at(&name) {
+                    entity_commands.with_children(|grandparent| {
+                        grandparent.spawn((
                             RelativeCursorPosition::default(),
                             ImageBundle {
                                 image: item.ui_image(asset_server),
@@ -562,9 +688,23 @@ fn start_drag_inventory_item(
     }
 }
 
+fn start_drag_equipment_item(
+    equipment_slot_query: Query<(&EquipmentSlot, &Interaction)>,
+    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
+    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+) {
+    for (slot, interaction) in equipment_slot_query.iter() {
+        if *interaction == Interaction::Pressed && dragging_inventory_slot.get().0.is_none() {
+            next_dragging_inventory_slot.set(DraggingInventorySlot(Some(slot.0)));
+            break;
+        }
+    }
+}
+
 fn stop_drag_inventory_item(
     mut event_writer: EventWriter<InventoryChanged>,
     inventory_slot_query: Query<(&InventorySlot, &RelativeCursorPosition)>,
+    equipment_slot_query: Query<(&EquipmentSlot, &RelativeCursorPosition)>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut inventory: ResMut<Inventory>,
     dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
@@ -572,27 +712,32 @@ fn stop_drag_inventory_item(
 ) {
     if mouse.just_released(MouseButton::Left) {
         if let Some(i) = dragging_inventory_slot.get().0 {
+            let mut inventory_changed = false;
+
             for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
                 if rel_cursor_position.mouse_over() {
-                    event_writer.send(InventoryChanged);
-
-                    // Check if the two stacks have the same ItemName, and if so merge them.
-                    let slot_clone = inventory.0[i].as_ref().cloned();
-
-                    match (&slot_clone, &mut inventory.0[inventory_slot.0]) {
-                        (Some(item_a), Some(item_b)) => {
-                            if item_a.name == item_b.name {
-                                let rem_items = item_b.merge(item_a.clone());
-                                inventory.0[i] = rem_items.to_owned();
-                                break;
-                            }
-                        }
-                        _ => (),
-                    };
-
-                    inventory.0.swap(i, inventory_slot.0);
+                    inventory.merge_swap_at(i, inventory_slot.0);
+                    inventory_changed = true;
                     break;
                 }
+            }
+
+            if !inventory_changed {
+                if let Some(item_a) = inventory.slots[i].as_ref() {
+                    for (equipment_slot, rel_cursor_position) in equipment_slot_query.iter() {
+                        if rel_cursor_position.mouse_over()
+                            && item_a.is_equipable_at(&equipment_slot.0)
+                        {
+                            inventory.equip_at(i, &equipment_slot.0);
+                            inventory_changed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if inventory_changed {
+                event_writer.send(InventoryChanged);
             }
         }
 

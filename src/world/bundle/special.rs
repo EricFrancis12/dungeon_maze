@@ -95,6 +95,8 @@ pub fn spawn_treasure_chest_bundle(
                 }
             } else {
                 let mut rng = ccm.to_rng();
+                // TODO: items with a max stack size of 1
+                // should only be able to spawn with an amt of 1
                 let amt = rng.gen_range(1..=3);
                 Item::choose(&mut rng, amt)
             };
