@@ -1,10 +1,14 @@
+mod attack;
+
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
     camera::MainCamera,
+    player::attack::AttackType,
     should_not_happen,
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
 
+use attack::{start_player_attack, tick_player_attack};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
@@ -52,6 +56,8 @@ impl Plugin for PlayerPlugin {
                     handle_take_damage,
                     handle_heal_health,
                     handle_heal_stamina,
+                    start_player_attack,
+                    tick_player_attack,
                 ),
             )
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
@@ -67,6 +73,7 @@ pub enum PlayerState {
     #[default]
     Walking,
     Sprinting,
+    Attacking(AttackType, IncrCounter),
 }
 
 impl PlayerState {
@@ -523,9 +530,10 @@ fn change_player_speed(
     player_state: Res<State<PlayerState>>,
 ) {
     if let Ok(mut player_speed) = player_query.get_single_mut() {
-        *player_speed = match *player_state.get() {
-            PlayerState::Walking => Speed(PLAYER_WALKING_SPEED),
-            PlayerState::Sprinting => Speed(PLAYER_SPRINTING_SPEED),
+        match *player_state.get() {
+            PlayerState::Walking => *player_speed = Speed(PLAYER_WALKING_SPEED),
+            PlayerState::Sprinting => *player_speed = Speed(PLAYER_SPRINTING_SPEED),
+            PlayerState::Attacking(..) => {}
         };
     }
 }

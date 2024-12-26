@@ -4,7 +4,7 @@ pub mod maze;
 pub mod noise;
 pub mod rng;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IncrCounter {
     value: i32,
     incr: i32,
