@@ -1,6 +1,6 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    menu::{DraggingInventorySlot, Menu},
+    menu::{DragState, Dragging, Menu},
     should_not_happen,
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
@@ -189,7 +189,7 @@ impl Item {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Display, EnumIter, Eq, Serialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, Serialize, PartialEq)]
 pub enum EquipmentSlotName {
     LeftHand,
     RightHand,
@@ -214,6 +214,21 @@ impl Equipment {
             EquipmentSlotName::LeftHand => &mut self.left_hand,
             EquipmentSlotName::RightHand => &mut self.right_hand,
         }
+    }
+
+    pub fn swap(&mut self, a: &EquipmentSlotName, b: &EquipmentSlotName) {
+        if a == b {
+            return;
+        }
+
+        let slot_a_clone = self.at_mut(a).clone();
+        let slot_b_clone = self.at_mut(b).clone();
+
+        let slot_a = self.at_mut(a);
+        *slot_a = slot_b_clone;
+
+        let slot_b = self.at_mut(b);
+        *slot_b = slot_a_clone;
     }
 }
 
@@ -289,14 +304,32 @@ impl Inventory {
         (None, false)
     }
 
+    pub fn is_equipable_at(&self, i: usize, name: &EquipmentSlotName) -> bool {
+        match self.slots.get(i) {
+            Some(slot) => slot.is_none() || slot.as_ref().unwrap().is_equipable_at(&name),
+            None => {
+                should_not_happen!("indexing inventory out of bounds: {}", i);
+                false
+            }
+        }
+    }
+
     pub fn equip_at(&mut self, i: usize, name: &EquipmentSlotName) -> bool {
         if let Some(slot) = self.slots.get_mut(i) {
-            if let Some(item) = slot {
-                if item.is_equipable_at(&name) {
-                    let equipment_slot = self.equipment.at_mut(&name);
-                    let temp = equipment_slot.clone();
-                    *equipment_slot = Some(item.clone());
-                    *slot = temp;
+            let equipment_slot = self.equipment.at_mut(&name);
+            let equipment_slot_clone = equipment_slot.clone();
+
+            match slot {
+                Some(item) => {
+                    if item.is_equipable_at(&name) {
+                        *equipment_slot = Some(item.clone());
+                        *slot = equipment_slot_clone;
+                        return true;
+                    }
+                }
+                None => {
+                    *equipment_slot = None;
+                    *slot = equipment_slot_clone;
                     return true;
                 }
             }
@@ -378,7 +411,7 @@ fn pick_up_items(
 }
 
 fn drop_dragged_item(
-    mut event_reader: EventReader<StateTransitionEvent<DraggingInventorySlot>>,
+    mut event_reader: EventReader<StateTransitionEvent<DragState>>,
     mut inv_event_writer: EventWriter<InventoryChanged>,
     mut pdi_event_writer: EventWriter<PlayerDroppedItem>,
     menu_query: Query<&RelativeCursorPosition, With<Menu>>,
@@ -386,9 +419,13 @@ fn drop_dragged_item(
 ) {
     for event in event_reader.read() {
         if let Ok(rel_cursor_position) = menu_query.get_single() {
-            if !rel_cursor_position.mouse_over() {
-                if let Some(prev_dragging_inventory_slot) = &event.exited {
-                    if let Some(i) = prev_dragging_inventory_slot.0 {
+            if rel_cursor_position.mouse_over() {
+                continue;
+            }
+
+            if let Some(prev_dragging_slot) = &event.exited {
+                match prev_dragging_slot.0 {
+                    Dragging::InventorySlot(i) => {
                         if let Some(slot) = inventory.slots.get_mut(i) {
                             if let Some(item) = slot {
                                 pdi_event_writer.send(PlayerDroppedItem(item.clone()));
@@ -397,6 +434,15 @@ fn drop_dragged_item(
                             }
                         }
                     }
+                    Dragging::EquipmentSlot(name) => {
+                        let slot = inventory.equipment.at_mut(&name);
+                        if let Some(item) = slot {
+                            pdi_event_writer.send(PlayerDroppedItem(item.clone()));
+                            inv_event_writer.send(InventoryChanged);
+                            *slot = None;
+                        }
+                    }
+                    Dragging::None => {}
                 }
             }
         }

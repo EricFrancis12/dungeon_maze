@@ -17,7 +17,7 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<MenuOpen>()
             .init_state::<ActiveMenuTab>()
-            .init_state::<DraggingInventorySlot>()
+            .init_state::<DragState>()
             .add_systems(
                 Update,
                 (
@@ -64,8 +64,16 @@ struct MenuOpen(bool);
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveMenuTab(MenuTab);
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub enum Dragging {
+    #[default]
+    None,
+    InventorySlot(usize),
+    EquipmentSlot(EquipmentSlotName),
+}
+
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-pub struct DraggingInventorySlot(pub Option<usize>);
+pub struct DragState(pub Dragging);
 
 #[derive(Component)]
 pub struct Menu;
@@ -81,9 +89,6 @@ struct InventorySlot(usize);
 
 #[derive(Component)]
 struct EquipmentSlot(EquipmentSlotName);
-
-#[derive(Component)]
-struct InventorySlotImage(usize);
 
 #[derive(Component)]
 struct ItemImageCursorFollower;
@@ -318,15 +323,10 @@ fn spawn_inventory_menu_content(
                 if let Some(item) = slot {
                     entity_commands.with_children(|grandparent| {
                         grandparent.spawn((
-                            InventorySlotImage(i),
                             RelativeCursorPosition::default(),
                             ImageBundle {
                                 image: item.ui_image(asset_server),
-                                style: Style {
-                                    height: Val::Px(40.0),
-                                    width: Val::Px(40.0),
-                                    ..default()
-                                },
+                                style: item_style(),
                                 ..default()
                             },
                         ));
@@ -677,12 +677,12 @@ fn update_visible_on_parent_hover(
 
 fn start_drag_inventory_item(
     inventory_slot_query: Query<(&InventorySlot, &Interaction)>,
-    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
-    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+    drag_state: Res<State<DragState>>,
+    mut next_drag_state: ResMut<NextState<DragState>>,
 ) {
     for (slot, interaction) in inventory_slot_query.iter() {
-        if *interaction == Interaction::Pressed && dragging_inventory_slot.get().0.is_none() {
-            next_dragging_inventory_slot.set(DraggingInventorySlot(Some(slot.0)));
+        if *interaction == Interaction::Pressed && drag_state.get().0 == Dragging::None {
+            next_drag_state.set(DragState(Dragging::InventorySlot(slot.0)));
             break;
         }
     }
@@ -690,12 +690,12 @@ fn start_drag_inventory_item(
 
 fn start_drag_equipment_item(
     equipment_slot_query: Query<(&EquipmentSlot, &Interaction)>,
-    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
-    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+    drag_state: Res<State<DragState>>,
+    mut next_drag_state: ResMut<NextState<DragState>>,
 ) {
     for (slot, interaction) in equipment_slot_query.iter() {
-        if *interaction == Interaction::Pressed && dragging_inventory_slot.get().0.is_none() {
-            next_dragging_inventory_slot.set(DraggingInventorySlot(Some(slot.0)));
+        if *interaction == Interaction::Pressed && drag_state.get().0 == Dragging::None {
+            next_drag_state.set(DragState(Dragging::EquipmentSlot(slot.0.clone())));
             break;
         }
     }
@@ -707,41 +707,68 @@ fn stop_drag_inventory_item(
     equipment_slot_query: Query<(&EquipmentSlot, &RelativeCursorPosition)>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut inventory: ResMut<Inventory>,
-    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
-    mut next_dragging_inventory_slot: ResMut<NextState<DraggingInventorySlot>>,
+    drag_state: Res<State<DragState>>,
+    mut next_drag_state: ResMut<NextState<DragState>>,
 ) {
     if mouse.just_released(MouseButton::Left) {
-        if let Some(i) = dragging_inventory_slot.get().0 {
-            let mut inventory_changed = false;
+        let mut inventory_changed = false;
 
-            for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
-                if rel_cursor_position.mouse_over() {
-                    inventory.merge_swap_at(i, inventory_slot.0);
-                    inventory_changed = true;
-                    break;
+        match drag_state.get().0 {
+            Dragging::None => {}
+            Dragging::InventorySlot(i) => {
+                // Swap inventory slots
+                for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
+                    if rel_cursor_position.mouse_over() {
+                        inventory.merge_swap_at(i, inventory_slot.0);
+                        inventory_changed = true;
+                        break;
+                    }
+                }
+
+                // Move from inventory slot to equipment slot
+                if !inventory_changed {
+                    if let Some(item_a) = inventory.slots[i].as_ref() {
+                        for (equipment_slot, rel_cursor_position) in equipment_slot_query.iter() {
+                            if rel_cursor_position.mouse_over()
+                                && item_a.is_equipable_at(&equipment_slot.0)
+                            {
+                                inventory.equip_at(i, &equipment_slot.0);
+                                inventory_changed = true;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
+            Dragging::EquipmentSlot(name) => {
+                // Swap equipment slots
+                for (equipment_slot, rel_cursor_position) in equipment_slot_query.iter() {
+                    if rel_cursor_position.mouse_over() {
+                        inventory.equipment.swap(&equipment_slot.0, &name);
+                        inventory_changed = true;
+                        break;
+                    }
+                }
 
-            if !inventory_changed {
-                if let Some(item_a) = inventory.slots[i].as_ref() {
-                    for (equipment_slot, rel_cursor_position) in equipment_slot_query.iter() {
+                // Move from equipment slot to inventory slot
+                if !inventory_changed {
+                    for (inventory_slot, rel_cursor_position) in inventory_slot_query.iter() {
                         if rel_cursor_position.mouse_over()
-                            && item_a.is_equipable_at(&equipment_slot.0)
+                            && inventory.is_equipable_at(inventory_slot.0, &name)
                         {
-                            inventory.equip_at(i, &equipment_slot.0);
+                            inventory.equip_at(inventory_slot.0, &name);
                             inventory_changed = true;
                             break;
                         }
                     }
                 }
             }
-
-            if inventory_changed {
-                event_writer.send(InventoryChanged);
-            }
         }
 
-        next_dragging_inventory_slot.set(DraggingInventorySlot(None));
+        if inventory_changed {
+            event_writer.send(InventoryChanged);
+        }
+        next_drag_state.set(DragState(Dragging::None));
     }
 }
 
@@ -867,27 +894,39 @@ fn handle_item_used(
 
 fn update_item_image_cursor_follower(
     mut commands: Commands,
-    mut event_reader: EventReader<StateTransitionEvent<DraggingInventorySlot>>,
-    image_query: Query<(&UiImage, &Style, &InventorySlotImage)>,
+    mut event_reader: EventReader<StateTransitionEvent<DragState>>,
     cursor_follower_query: Query<Entity, (With<ItemImageCursorFollower>, With<CursorFollower>)>,
+    asset_server: Res<AssetServer>,
     cursor_position: Res<CursorPosition>,
-    dragging_inventory_slot: Res<State<DraggingInventorySlot>>,
+    inventory: Res<Inventory>,
+    drag_state: Res<State<DragState>>,
 ) {
     for _ in event_reader.read() {
-        if let Some(i) = dragging_inventory_slot.get().0 {
-            if let Some((ui_image, ui_image_style, _)) =
-                image_query.iter().find(|(_, _, isi)| isi.0 == i)
-            {
-                spawn_item_image_cursor_follower(
-                    &mut commands,
-                    &cursor_position,
-                    &ui_image,
-                    &ui_image_style,
-                );
+        match drag_state.get().0 {
+            Dragging::InventorySlot(i) => {
+                if let Some(Some(item)) = inventory.slots.get(i) {
+                    spawn_item_image_cursor_follower(
+                        &mut commands,
+                        &cursor_position,
+                        &item.ui_image(&asset_server),
+                        &item_style(),
+                    );
+                }
             }
-        } else {
-            for entity in cursor_follower_query.iter() {
-                commands.entity(entity).despawn_recursive();
+            Dragging::EquipmentSlot(name) => {
+                if let Some(item) = inventory.equipment.at(&name) {
+                    spawn_item_image_cursor_follower(
+                        &mut commands,
+                        &cursor_position,
+                        &item.ui_image(&asset_server),
+                        &item_style(),
+                    );
+                }
+            }
+            Dragging::None => {
+                for entity in cursor_follower_query.iter() {
+                    commands.entity(entity).despawn_recursive();
+                }
             }
         }
 
@@ -917,4 +956,12 @@ fn spawn_item_image_cursor_follower(
             ..default()
         },
     ));
+}
+
+fn item_style() -> Style {
+    Style {
+        height: Val::Px(40.0),
+        width: Val::Px(40.0),
+        ..default()
+    }
 }
