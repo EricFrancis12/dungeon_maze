@@ -55,6 +55,7 @@ pub enum ItemName {
 
     // Weapons
     Broadsword,
+    Katana,
 }
 
 impl ItemName {
@@ -75,7 +76,7 @@ impl ItemName {
             | Self::StaminaPoison
             | Self::HealthRegenPoison
             | Self::StaminaRegenPoison => ItemType::Consumable,
-            Self::Broadsword => ItemType::Weapon,
+            Self::Broadsword | Self::Katana => ItemType::Weapon,
         }
     }
 
@@ -108,6 +109,7 @@ impl ItemName {
                 Self::HealthRegenPoison => asset_server.load("images/health_regen_poison.png"),
                 Self::StaminaRegenPoison => asset_server.load("images/stamina_regen_poison.png"),
                 Self::Broadsword => asset_server.load("images/broadsword.png"),
+                Self::Katana => asset_server.load("images/katana.png"),
             },
             ..default()
         }
