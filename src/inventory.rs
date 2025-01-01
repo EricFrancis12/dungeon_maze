@@ -37,7 +37,9 @@ pub enum ItemType {
     Weapon,
 }
 
-#[derive(Clone, Component, Debug, Deserialize, Display, EnumIter, Eq, PartialEq, Serialize)]
+#[derive(
+    Clone, Component, Copy, Debug, Deserialize, Display, EnumIter, Eq, PartialEq, Serialize,
+)]
 pub enum ItemName {
     // Raw materials
     Coal,
@@ -117,7 +119,7 @@ impl ItemName {
     }
 }
 
-#[derive(Clone, Component, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Component, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Item {
     pub name: ItemName,
     pub amt: u16,

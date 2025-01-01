@@ -8,7 +8,10 @@ use crate::{
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
 
-use attack::{start_player_attack, tick_player_attack};
+use attack::{
+    charge_up_and_release_attack, start_player_attack, tick_player_attack, AttackChargeUp,
+    PlayerAttacked,
+};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
@@ -40,7 +43,9 @@ impl Plugin for PlayerPlugin {
             .add_event::<TakeDamage>()
             .add_event::<HealHealth>()
             .add_event::<HealStamina>()
+            .add_event::<PlayerAttacked>()
             .init_state::<PlayerState>()
+            .insert_resource(AttackChargeUp::new(5, 15, None))
             .add_systems(Startup, spawn_player)
             .add_systems(
                 Update,
@@ -56,7 +61,8 @@ impl Plugin for PlayerPlugin {
                     handle_take_damage,
                     handle_heal_health,
                     handle_heal_stamina,
-                    start_player_attack,
+                    charge_up_and_release_attack,
+                    start_player_attack.run_if(in_state(PlayerState::Walking)),
                     tick_player_attack,
                 ),
             )

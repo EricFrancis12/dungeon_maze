@@ -12,9 +12,7 @@ pub struct IncrCounter {
 
 impl IncrCounter {
     pub fn new(value: i32, incr: i32) -> Self {
-        if incr == 0 {
-            panic!("expected non-zero incr");
-        }
+        assert_ne!(incr, 0, "expected non-zero incr");
         Self { value, incr }
     }
 
@@ -26,6 +24,10 @@ impl IncrCounter {
             _max(v + self.incr, 0)
         };
         v
+    }
+
+    pub fn get_value(&self) -> i32 {
+        self.value
     }
 }
 
