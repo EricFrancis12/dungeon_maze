@@ -16,11 +16,7 @@ pub fn start_player_attack(
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
-    if *player_state.get() != PlayerState::Walking {
-        return;
-    }
-
-    if mouse.just_pressed(MouseButton::Left) {
+    if mouse.just_pressed(MouseButton::Left) && *player_state.get() != PlayerState::Walking {
         next_player_state.set(PlayerState::Attacking(
             AttackType::Normal,
             IncrCounter::new(10, -1),
