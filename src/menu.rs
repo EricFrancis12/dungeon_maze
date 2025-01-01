@@ -68,7 +68,7 @@ impl fmt::Display for MenuTab {
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-struct MenuOpen(bool);
+pub struct MenuOpen(pub bool);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 struct ActiveMenuTab(MenuTab);

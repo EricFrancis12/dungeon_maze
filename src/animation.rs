@@ -1,5 +1,6 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
+    inventory::{Inventory, Item},
     player::{
         attack::{AttackHand, AttackType},
         PlayerState,
@@ -9,6 +10,8 @@ use crate::{
 
 use bevy::{animation::animate_targets, prelude::*};
 use std::time::Duration;
+
+const TRANSITION_DURATION: Duration = Duration::from_millis(250);
 
 pub struct AnimationPlugin;
 
@@ -40,31 +43,52 @@ pub enum PlayerAnimation {
     Idle,
     Jogging,
     Running,
+
+    // unarmed attacks
     UnarmedLeftLightAttack,
     UnarmedLeftHeavyAttack,
     UnarmedRightLightAttack,
     UnarmedRightHeavyAttack,
+
+    // one handed weapon attacks
+    OneHandedSlashLeftHeavyAttack,
+    OneHandedSlashLeftLightAttack,
+    OneHandedSlashRightHeavyAttack,
+    OneHandedSlashRightLightAttack,
 }
 
 impl PlayerAnimation {
     pub fn index(&self) -> usize {
         match self {
+            // TODO: fix glb animation ordering when exporting from Blender
             Self::Idle => 0,
             Self::Jogging => 1,
-            Self::Running => 2,
-            Self::UnarmedLeftHeavyAttack => 3,
-            Self::UnarmedLeftLightAttack => 4,
-            Self::UnarmedRightHeavyAttack => 5,
-            Self::UnarmedRightLightAttack => 6,
+            Self::OneHandedSlashRightLightAttack => 2,
+            Self::Running => 3,
+            Self::UnarmedLeftHeavyAttack => 4,
+            Self::UnarmedLeftLightAttack => 5,
+            Self::UnarmedRightHeavyAttack => 6,
+            Self::UnarmedRightLightAttack => 7,
+            Self::OneHandedSlashLeftHeavyAttack => 8,
+            Self::OneHandedSlashLeftLightAttack => 9,
+            Self::OneHandedSlashRightHeavyAttack => 10,
         }
     }
 
-    pub fn new_attack_animation(attack_type: &AttackType, attack_hand: &AttackHand) -> Self {
-        match (attack_type, attack_hand) {
-            (AttackType::Light, AttackHand::Left) => Self::UnarmedLeftLightAttack,
-            (AttackType::Light, AttackHand::Right) => Self::UnarmedRightLightAttack,
-            (AttackType::Heavy, AttackHand::Left) => Self::UnarmedLeftHeavyAttack,
-            (AttackType::Heavy, AttackHand::Right) => Self::UnarmedRightHeavyAttack,
+    pub fn new_attack_animation(
+        attack_type: &AttackType,
+        attack_hand: &AttackHand,
+        slot: &Option<Item>,
+    ) -> Self {
+        match slot {
+            None => match (attack_type, attack_hand) {
+                // unarmed attacks
+                (AttackType::Light, AttackHand::Left) => Self::UnarmedLeftLightAttack,
+                (AttackType::Light, AttackHand::Right) => Self::UnarmedRightLightAttack,
+                (AttackType::Heavy, AttackHand::Left) => Self::UnarmedLeftHeavyAttack,
+                (AttackType::Heavy, AttackHand::Right) => Self::UnarmedRightHeavyAttack,
+            },
+            Some(item) => item.name.player_attack_animation(attack_type, attack_hand),
         }
     }
 
@@ -73,8 +97,12 @@ impl PlayerAnimation {
             Self::UnarmedLeftLightAttack
             | Self::UnarmedLeftHeavyAttack
             | Self::UnarmedRightLightAttack
-            | Self::UnarmedRightHeavyAttack => true,
-            _ => false,
+            | Self::UnarmedRightHeavyAttack
+            | Self::OneHandedSlashLeftHeavyAttack
+            | Self::OneHandedSlashLeftLightAttack
+            | Self::OneHandedSlashRightHeavyAttack
+            | Self::OneHandedSlashRightLightAttack => true,
+            Self::Idle | Self::Jogging | Self::Running => false,
         }
     }
 
@@ -82,9 +110,10 @@ impl PlayerAnimation {
         &self,
         attack_type: &AttackType,
         attack_hand: &AttackHand,
+        slot: &Option<Item>,
     ) -> bool {
         match self.is_attack_animation() {
-            true => *self == Self::new_attack_animation(attack_type, attack_hand),
+            true => *self == Self::new_attack_animation(attack_type, attack_hand, slot),
             false => false,
         }
     }
@@ -128,8 +157,11 @@ fn setup_animations(
                     .from_asset("models/Man.glb"), // idle
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
                     .from_asset("models/Man.glb"), // jogging
+                GltfAssetLabel::Animation(PlayerAnimation::OneHandedSlashRightLightAttack.index())
+                    .from_asset("models/Man.glb"), // slash right light attack
                 GltfAssetLabel::Animation(PlayerAnimation::Running.index())
                     .from_asset("models/Man.glb"), // running
+                // TODO: add slash animations here (left heavy, left light, right heavy)
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftHeavyAttack.index())
                     .from_asset("models/Man.glb"), // unarmed left heavy attack
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftLightAttack.index())
@@ -210,6 +242,7 @@ fn change_player_animation(
     player_state: Res<State<PlayerState>>,
     mut next_player_animation: ResMut<NextState<PlayerAnimation>>,
     animation_lib: Res<AnimationLib>,
+    inventory: Res<Inventory>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
     for (mut animation_player, mut transitions) in animation_player_query.iter_mut() {
@@ -242,22 +275,23 @@ fn change_player_animation(
                     .play(
                         &mut animation_player,
                         animation_lib.nodes[i],
-                        Duration::from_millis(250),
+                        TRANSITION_DURATION,
                     )
                     .repeat();
             }
             PlayerState::Attacking(attack_type, attack_hand) => {
-                if pa.is_matching_attack_animation(attack_type, attack_hand) {
+                let slot = inventory.equipment.at(&attack_hand.into());
+                if pa.is_matching_attack_animation(attack_type, attack_hand, slot) {
                     continue;
                 }
 
-                let new_pa = PlayerAnimation::new_attack_animation(attack_type, attack_hand);
+                let new_pa = PlayerAnimation::new_attack_animation(attack_type, attack_hand, slot);
                 next_player_animation.set(new_pa);
 
                 transitions.play(
                     &mut animation_player,
                     animation_lib.nodes[new_pa.index()],
-                    Duration::from_millis(250),
+                    TRANSITION_DURATION,
                 );
             }
         };

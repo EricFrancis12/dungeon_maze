@@ -1,6 +1,8 @@
 use crate::{
+    animation::PlayerAnimation,
     interaction::{Interactable, PendingInteractionExecuted},
     menu::{DragState, Dragging, Menu},
+    player::attack::{AttackHand, AttackType},
     should_not_happen,
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
@@ -116,6 +118,46 @@ impl ItemName {
             ..default()
         }
     }
+
+    pub fn player_attack_animation(
+        &self,
+        attack_type: &AttackType,
+        attack_hand: &AttackHand,
+    ) -> PlayerAnimation {
+        match self {
+            Self::Broadsword | &Self::Katana => match (attack_type, attack_hand) {
+                (AttackType::Light, AttackHand::Left) => {
+                    PlayerAnimation::OneHandedSlashLeftLightAttack
+                }
+                (AttackType::Light, AttackHand::Right) => {
+                    PlayerAnimation::OneHandedSlashRightLightAttack
+                }
+                (AttackType::Heavy, AttackHand::Left) => {
+                    PlayerAnimation::OneHandedSlashLeftHeavyAttack
+                }
+                (AttackType::Heavy, AttackHand::Right) => {
+                    PlayerAnimation::OneHandedSlashRightHeavyAttack
+                }
+            },
+            Self::Coal
+            | Self::Cotton
+            | Self::Flint
+            | Self::HealthPotion
+            | Self::StaminaPotion
+            | Self::HealthRegenPotion
+            | Self::StaminaRegenPotion
+            | Self::HealthPoison
+            | Self::StaminaPoison
+            | Self::HealthRegenPoison
+            | Self::StaminaRegenPoison => {
+                should_not_happen!(
+                    "{:?} is not a weapon, and therefore does not have an attack animation",
+                    self
+                );
+                PlayerAnimation::default()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Component, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -197,6 +239,15 @@ impl Item {
 pub enum EquipmentSlotName {
     LeftHand,
     RightHand,
+}
+
+impl From<&AttackHand> for EquipmentSlotName {
+    fn from(value: &AttackHand) -> Self {
+        match value {
+            AttackHand::Left => Self::LeftHand,
+            AttackHand::Right => Self::RightHand,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{inventory::EquipmentSlotName, utils::IncrCounter};
+use crate::utils::IncrCounter;
 
 use super::PlayerState;
 
@@ -76,15 +76,6 @@ pub enum AttackHand {
     #[default]
     Left,
     Right,
-}
-
-impl Into<EquipmentSlotName> for AttackHand {
-    fn into(self) -> EquipmentSlotName {
-        match self {
-            Self::Left => EquipmentSlotName::LeftHand,
-            Self::Right => EquipmentSlotName::RightHand,
-        }
-    }
 }
 
 pub fn charge_up_and_release_attack(

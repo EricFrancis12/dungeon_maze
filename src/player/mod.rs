@@ -3,6 +3,7 @@ pub mod attack;
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
     camera::MainCamera,
+    menu::MenuOpen,
     player::attack::{AttackHand, AttackType},
     should_not_happen,
     utils::{IncrCounter, _max, _min_max_or_betw},
@@ -57,7 +58,7 @@ impl Plugin for PlayerPlugin {
                     handle_take_damage,
                     handle_heal_health,
                     handle_heal_stamina,
-                    charge_up_and_release_attack,
+                    charge_up_and_release_attack.run_if(in_state(MenuOpen(false))),
                 ),
             )
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
