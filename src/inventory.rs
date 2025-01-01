@@ -1,7 +1,6 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
     menu::{DragState, Dragging, Menu},
-    player::attack::{AttackHand, AttackType},
     should_not_happen,
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
@@ -171,27 +170,6 @@ impl Item {
 
     pub fn ui_image(&self, asset_server: &Res<AssetServer>) -> UiImage {
         self.name.ui_image(asset_server)
-    }
-
-    pub fn animation_frames(&self, attack_type: &AttackType, attack_hand: &AttackHand) -> u32 {
-        match self.name.item_type() {
-            ItemType::Weapon => match (&self.name, attack_type, attack_hand) {
-                // TODO: ...
-                (ItemName::Broadsword, _, _) => 50,
-                (ItemName::Katana, _, _) => 50,
-                _ => {
-                    should_not_happen!("unhandled weapon ItemName: {:?}", self.name);
-                    0
-                }
-            },
-            _ => {
-                should_not_happen!(
-                    "expected ItemType::Weapon when calling animation_frames(), but got: {:?}",
-                    self.name.item_type()
-                );
-                0
-            }
-        }
     }
 
     // _use returns a tuple with 2 values:

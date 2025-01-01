@@ -22,6 +22,7 @@ impl Plugin for AnimationPlugin {
                     play_continuous_animations.before(animate_targets),
                     handle_cyclic_interaction_animations,
                     change_player_animation,
+                    on_finish_attack_animation,
                 ),
             );
     }
@@ -218,9 +219,9 @@ fn change_player_animation(
         let ps = player_state.get();
         let pa = player_animation.get();
 
-        let i = match ps {
+        match ps {
             PlayerState::Walking | PlayerState::Sprinting => {
-                if is_moving {
+                let i = if is_moving {
                     if *ps == PlayerState::Walking && *pa != PlayerAnimation::Jogging {
                         next_player_animation.set(PlayerAnimation::Jogging);
                         PlayerAnimation::Jogging.index()
@@ -235,26 +236,44 @@ fn change_player_animation(
                     PlayerAnimation::Idle.index()
                 } else {
                     continue;
-                }
+                };
+
+                transitions
+                    .play(
+                        &mut animation_player,
+                        animation_lib.nodes[i],
+                        Duration::from_millis(250),
+                    )
+                    .repeat();
             }
-            PlayerState::Attacking(attack_type, attack_hand, _) => {
+            PlayerState::Attacking(attack_type, attack_hand) => {
                 if pa.is_matching_attack_animation(attack_type, attack_hand) {
                     continue;
                 }
 
                 let new_pa = PlayerAnimation::new_attack_animation(attack_type, attack_hand);
-
                 next_player_animation.set(new_pa);
-                new_pa.index()
+
+                transitions.play(
+                    &mut animation_player,
+                    animation_lib.nodes[new_pa.index()],
+                    Duration::from_millis(250),
+                );
             }
         };
+    }
+}
 
-        transitions
-            .play(
-                &mut animation_player,
-                animation_lib.nodes[i],
-                Duration::from_millis(250),
-            )
-            .repeat();
+fn on_finish_attack_animation(
+    animation_player_query: Query<&AnimationPlayer, With<AnimationTransitions>>,
+    player_animation: Res<State<PlayerAnimation>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
+) {
+    for animation_player in animation_player_query.iter() {
+        for (_, active_animation) in animation_player.playing_animations() {
+            if active_animation.is_finished() && *player_animation.get() != PlayerAnimation::Idle {
+                next_player_state.set(PlayerState::Walking);
+            }
+        }
     }
 }
