@@ -1,6 +1,9 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    player::PlayerState,
+    player::{
+        attack::{AttackHand, AttackType},
+        PlayerState,
+    },
     utils::{entity::get_n_parent, CyclicCounter},
 };
 
@@ -36,6 +39,10 @@ pub enum PlayerAnimation {
     Idle,
     Jogging,
     Running,
+    UnarmedLeftLightAttack,
+    UnarmedLeftHeavyAttack,
+    UnarmedRightLightAttack,
+    UnarmedRightHeavyAttack,
 }
 
 impl PlayerAnimation {
@@ -44,6 +51,40 @@ impl PlayerAnimation {
             Self::Idle => 0,
             Self::Jogging => 1,
             Self::Running => 2,
+            Self::UnarmedLeftHeavyAttack => 3,
+            Self::UnarmedLeftLightAttack => 4,
+            Self::UnarmedRightHeavyAttack => 5,
+            Self::UnarmedRightLightAttack => 6,
+        }
+    }
+
+    pub fn new_attack_animation(attack_type: &AttackType, attack_hand: &AttackHand) -> Self {
+        match (attack_type, attack_hand) {
+            (AttackType::Light, AttackHand::Left) => Self::UnarmedLeftLightAttack,
+            (AttackType::Light, AttackHand::Right) => Self::UnarmedRightLightAttack,
+            (AttackType::Heavy, AttackHand::Left) => Self::UnarmedLeftHeavyAttack,
+            (AttackType::Heavy, AttackHand::Right) => Self::UnarmedRightHeavyAttack,
+        }
+    }
+
+    pub fn is_attack_animation(&self) -> bool {
+        match self {
+            Self::UnarmedLeftLightAttack
+            | Self::UnarmedLeftHeavyAttack
+            | Self::UnarmedRightLightAttack
+            | Self::UnarmedRightHeavyAttack => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_matching_attack_animation(
+        &self,
+        attack_type: &AttackType,
+        attack_hand: &AttackHand,
+    ) -> bool {
+        match self.is_attack_animation() {
+            true => *self == Self::new_attack_animation(attack_type, attack_hand),
+            false => false,
         }
     }
 }
@@ -88,6 +129,14 @@ fn setup_animations(
                     .from_asset("models/Man.glb"), // jogging
                 GltfAssetLabel::Animation(PlayerAnimation::Running.index())
                     .from_asset("models/Man.glb"), // running
+                GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftHeavyAttack.index())
+                    .from_asset("models/Man.glb"), // unarmed left heavy attack
+                GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftLightAttack.index())
+                    .from_asset("models/Man.glb"), // unarmed left light attack
+                GltfAssetLabel::Animation(PlayerAnimation::UnarmedRightHeavyAttack.index())
+                    .from_asset("models/Man.glb"), // unarmed right heavy attack
+                GltfAssetLabel::Animation(PlayerAnimation::UnarmedRightLightAttack.index())
+                    .from_asset("models/Man.glb"), // unarmed right light attack
                 GltfAssetLabel::Animation(1).from_asset("models/Treasure_Chest.glb"), // open
                 GltfAssetLabel::Animation(0).from_asset("models/Treasure_Chest.glb"), // close
             ]
@@ -107,33 +156,21 @@ fn setup_animations(
 
 fn play_continuous_animations(
     mut commands: Commands,
-    mut animation_player_query: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+    mut animation_player_query: Query<Entity, Added<AnimationPlayer>>,
     continuous_animation_query: Query<&ContinuousAnimation>,
     parent_query: Query<&Parent>,
     animation_lib: Res<AnimationLib>,
 ) {
-    for (entity, mut animation_player) in &mut animation_player_query {
+    for entity in &mut animation_player_query {
         if continuous_animation_query
             .get(get_n_parent(entity, &parent_query, 3))
-            .is_err()
+            .is_ok()
         {
-            continue;
+            commands
+                .entity(entity)
+                .insert(animation_lib.graph.clone())
+                .insert(AnimationTransitions::new());
         }
-
-        let mut transitions = AnimationTransitions::new();
-
-        transitions
-            .play(
-                &mut animation_player,
-                animation_lib.nodes[PlayerAnimation::Idle.index()],
-                Duration::ZERO,
-            )
-            .repeat();
-
-        commands
-            .entity(entity)
-            .insert(animation_lib.graph.clone())
-            .insert(transitions);
     }
 }
 
@@ -178,25 +215,38 @@ fn change_player_animation(
         let is_moving =
             keys.any_pressed([KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD]);
 
-        let i = if is_moving {
-            if *player_state.get() == PlayerState::Walking
-                && *player_animation.get() != PlayerAnimation::Jogging
-            {
-                next_player_animation.set(PlayerAnimation::Jogging);
-                PlayerAnimation::Jogging.index()
-            } else if *player_state.get() == PlayerState::Sprinting
-                && *player_animation.get() != PlayerAnimation::Running
-            {
-                next_player_animation.set(PlayerAnimation::Running);
-                PlayerAnimation::Running.index()
-            } else {
-                continue;
+        let ps = player_state.get();
+        let pa = player_animation.get();
+
+        let i = match ps {
+            PlayerState::Walking | PlayerState::Sprinting => {
+                if is_moving {
+                    if *ps == PlayerState::Walking && *pa != PlayerAnimation::Jogging {
+                        next_player_animation.set(PlayerAnimation::Jogging);
+                        PlayerAnimation::Jogging.index()
+                    } else if *ps == PlayerState::Sprinting && *pa != PlayerAnimation::Running {
+                        next_player_animation.set(PlayerAnimation::Running);
+                        PlayerAnimation::Running.index()
+                    } else {
+                        continue;
+                    }
+                } else if *pa != PlayerAnimation::Idle {
+                    next_player_animation.set(PlayerAnimation::Idle);
+                    PlayerAnimation::Idle.index()
+                } else {
+                    continue;
+                }
             }
-        } else if *player_animation.get() != PlayerAnimation::Idle {
-            next_player_animation.set(PlayerAnimation::Idle);
-            PlayerAnimation::Idle.index()
-        } else {
-            continue;
+            PlayerState::Attacking(attack_type, attack_hand, _) => {
+                if pa.is_matching_attack_animation(attack_type, attack_hand) {
+                    continue;
+                }
+
+                let new_pa = PlayerAnimation::new_attack_animation(attack_type, attack_hand);
+
+                next_player_animation.set(new_pa);
+                new_pa.index()
+            }
         };
 
         transitions

@@ -1,9 +1,9 @@
-mod attack;
+pub mod attack;
 
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
     camera::MainCamera,
-    player::attack::AttackType,
+    player::attack::{AttackHand, AttackType},
     should_not_happen,
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
@@ -73,7 +73,7 @@ pub enum PlayerState {
     #[default]
     Walking,
     Sprinting,
-    Attacking(AttackType, IncrCounter),
+    Attacking(AttackType, AttackHand, IncrCounter),
 }
 
 impl PlayerState {

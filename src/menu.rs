@@ -1,7 +1,10 @@
 use crate::{
     cursor::{CursorFollower, CursorPosition},
     inventory::{EquipmentSlotName, Inventory, InventoryChanged, ItemName, ItemUsed},
-    player::{DmgType, HealHealth, HealStamina, Health, Player, Regenerator, Stamina, TakeDamage},
+    player::{
+        DmgType, HealHealth, HealStamina, Health, Player, PlayerState, Regenerator, Stamina,
+        TakeDamage,
+    },
     settings::{ChunkRenderDist, GameSettings, RenderDistChanged},
     should_not_happen,
     utils::entity::get_n_parent,
@@ -29,13 +32,19 @@ impl Plugin for MenuPlugin {
                     change_render_dist,
                     change_render_dist_buttons_background_color,
                     update_visible_on_parent_hover,
-                    start_drag_inventory_item,
-                    start_drag_equipment_item,
-                    stop_drag_inventory_item,
                     use_inventory_item,
                     handle_item_used,
                     update_item_image_cursor_follower,
                 ),
+            )
+            .add_systems(
+                Update,
+                (
+                    start_drag_inventory_item,
+                    start_drag_equipment_item,
+                    stop_drag_item,
+                )
+                    .run_if(in_state(PlayerState::Walking)),
             )
             .add_systems(OnEnter(MenuOpen(true)), spawn_menu)
             .add_systems(OnExit(MenuOpen(true)), despawn_menu);
@@ -701,7 +710,7 @@ fn start_drag_equipment_item(
     }
 }
 
-fn stop_drag_inventory_item(
+fn stop_drag_item(
     mut event_writer: EventWriter<InventoryChanged>,
     inventory_slot_query: Query<(&InventorySlot, &RelativeCursorPosition)>,
     equipment_slot_query: Query<(&EquipmentSlot, &RelativeCursorPosition)>,
