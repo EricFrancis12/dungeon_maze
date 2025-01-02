@@ -8,7 +8,7 @@ use crate::{
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
 };
 
-use bevy::{prelude::*, ui::RelativeCursorPosition};
+use bevy::{asset::AssetPath, prelude::*, ui::RelativeCursorPosition};
 use bevy_text_popup::{TextPopupEvent, TextPopupLocation, TextPopupTimeout};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -119,6 +119,17 @@ impl ItemName {
         }
     }
 
+    pub fn model_path(&self) -> Option<impl Into<AssetPath>> {
+        match self {
+            Self::Broadsword => Some(GltfAssetLabel::Scene(0).from_asset("models/Broadsword.glb")),
+            Self::Katana => Some(GltfAssetLabel::Scene(0).from_asset("models/Katana.glb")),
+            _ => {
+                should_not_happen!("expected ItemName with a 3d model, but got: {}", self);
+                None
+            }
+        }
+    }
+
     pub fn player_attack_animation(
         &self,
         attack_type: &AttackType,
@@ -214,6 +225,10 @@ impl Item {
         self.name.ui_image(asset_server)
     }
 
+    pub fn model_path(&self) -> Option<impl Into<AssetPath>> {
+        self.name.model_path()
+    }
+
     // _use returns a tuple with 2 values:
     // The first value is an optional Item, which represents the byproduct (output) of the original item being used.
     // The second value is a bool that indicates whether or not the original item was mutated.
@@ -235,7 +250,9 @@ impl Item {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, Serialize, PartialEq)]
+#[derive(
+    Clone, Component, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, Serialize, PartialEq,
+)]
 pub enum EquipmentSlotName {
     LeftHand,
     RightHand,
