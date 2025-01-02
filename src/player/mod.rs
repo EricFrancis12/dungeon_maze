@@ -43,10 +43,11 @@ impl Plugin for PlayerPlugin {
             .add_event::<HealStamina>()
             .init_state::<PlayerState>()
             .insert_resource(AttackChargeUp::new(5, 15, None))
-            .add_systems(Startup, spawn_player)
+            .add_systems(Startup, (spawn_player, debug_spawn_sword))
             .add_systems(
                 Update,
                 (
+                    debug_move_sword_on_right_hand,
                     toggle_player_sprinting,
                     player_ground_movement,
                     temp_health_regen,
@@ -438,6 +439,53 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             Name::new("Spotlight"),
         ));
     });
+}
+
+// TODO: remove
+#[derive(Component)]
+struct DebugSword;
+
+// TODO: remove
+fn debug_spawn_sword(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn((
+        DebugSword,
+        SceneBundle {
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Broadsword.glb")),
+            ..default()
+        },
+        Name::new("Debug Sword"),
+    ));
+}
+
+// TODO: remove
+fn debug_move_sword_on_right_hand(
+    mut debug_sword_query: Query<&mut Transform, (With<DebugSword>, Without<Player>)>,
+    right_hand_query: Query<
+        (Entity, &Name, &GlobalTransform),
+        (Without<DebugSword>, Without<Player>),
+    >,
+) {
+    // mixamorig:RightHand
+    // Right_Hand_Grip_Target
+    // Right_Hand_Grip_Direction
+
+    let target = right_hand_query
+        .iter()
+        .find(|(_, name, _)| name.to_string() == String::from("Right_Hand_Grip_Target"));
+
+    let direction = right_hand_query
+        .iter()
+        .find(|(_, name, _)| name.to_string() == String::from("Right_Hand_Grip_Direction"));
+
+    match (target, direction) {
+        (Some((_, _, target_gl_transform)), Some((_, _, direction_gl_transform))) => {
+            let mut debug_sword_transform = debug_sword_query.get_single_mut().unwrap();
+
+            debug_sword_transform.translation = target_gl_transform.translation().clone();
+            debug_sword_transform.look_at(direction_gl_transform.translation().clone(), Vec3::Y);
+        }
+        _ => {}
+    }
 }
 
 fn player_ground_movement(
