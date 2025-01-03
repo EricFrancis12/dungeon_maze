@@ -258,6 +258,44 @@ pub enum EquipmentSlotName {
     RightHand,
 }
 
+impl EquipmentSlotName {
+    pub fn matches_target(&self, name: &Name) -> bool {
+        name.to_string()
+            == match self {
+                Self::LeftHand => String::from("Left_Hand_Grip_Target"),
+                Self::RightHand => String::from("Right_Hand_Grip_Target"),
+            }
+    }
+
+    pub fn matches_direction(&self, name: &Name) -> bool {
+        name.to_string()
+            == match self {
+                Self::LeftHand => String::from("Left_Hand_Grip_Direction"),
+                Self::RightHand => String::from("Right_Hand_Grip_Direction"),
+            }
+    }
+
+    pub fn query_target<'a>(
+        &self,
+        query: impl IntoIterator<Item = (Entity, &'a Name)>,
+    ) -> Option<Entity> {
+        query
+            .into_iter()
+            .find(|(_, name)| self.matches_target(name))
+            .map(|(e, _)| e)
+    }
+
+    pub fn query_direction<'a>(
+        &self,
+        query: impl IntoIterator<Item = (Entity, &'a Name)>,
+    ) -> Option<Entity> {
+        query
+            .into_iter()
+            .find(|(_, name)| self.matches_direction(name))
+            .map(|(e, _)| e)
+    }
+}
+
 impl From<&AttackHand> for EquipmentSlotName {
     fn from(value: &AttackHand) -> Self {
         match value {

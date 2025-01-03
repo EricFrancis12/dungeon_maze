@@ -8,7 +8,6 @@ use crate::{
     player::attack::{AttackHand, AttackType},
     should_not_happen,
     utils::{IncrCounter, _max, _min_max_or_betw},
-    world::bundle::EntitySpawner,
 };
 
 use attack::{charge_up_and_release_attack, AttackChargeUp};
@@ -379,7 +378,16 @@ impl TempAmt {
     }
 }
 
-fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>, inventory: Res<Inventory>) {
+fn spawn_player(
+    mut commands: Commands,
+    gl_transform_query: Query<&GlobalTransform>,
+    name_query: Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
+    asset_server: Res<AssetServer>,
+    inventory: Res<Inventory>,
+) {
     let player_bundle = (
         Player,
         Health::new(
@@ -440,33 +448,44 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>, inventor
             },
             Name::new("Spotlight"),
         ));
-
-        for slot_name in EquipmentSlotName::iter() {
-            if let Some(item) = inventory.equipment.at(&slot_name) {
-                spawn_equipment_model_bundle(&slot_name, item, parent, &asset_server);
-            }
-        }
     });
+
+    // TODO: Refactor to run this logic once player model has been spawned:
+    for slot_name in EquipmentSlotName::iter() {
+        if let Some(item) = inventory.equipment.at(&slot_name) {
+            spawn_equipment_model_bundle(
+                &slot_name,
+                item,
+                &mut commands,
+                &gl_transform_query,
+                &name_query,
+                &asset_server,
+            );
+        }
+    }
 }
 
 fn render_equiped_items(
     mut commands: Commands,
     mut event_reader: EventReader<InventoryChanged>,
-    player_query: Query<Entity, With<Player>>,
+    gl_transform_query: Query<&GlobalTransform>,
+    name_query: Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
     slot_name_query: Query<(Entity, &EquipmentSlotName, &Item)>,
     asset_server: Res<AssetServer>,
     inventory: Res<Inventory>,
 ) {
-    let player_entity = player_query.get_single().unwrap();
-
     for _ in event_reader.read() {
         for slot_name in EquipmentSlotName::iter() {
             if let Some(item) = inventory.equipment.at(&slot_name) {
                 handle_equipped_item(
                     &slot_name,
                     item,
-                    player_entity,
                     &mut commands,
+                    &gl_transform_query,
+                    &name_query,
                     &slot_name_query,
                     &asset_server,
                 );
@@ -480,8 +499,12 @@ fn render_equiped_items(
 fn handle_equipped_item(
     slot_name: &EquipmentSlotName,
     item: &Item,
-    player_entity: Entity,
     commands: &mut Commands,
+    gl_transform_query: &Query<&GlobalTransform>,
+    name_query: &Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
     slot_name_query: &Query<(Entity, &EquipmentSlotName, &Item)>,
     asset_server: &Res<AssetServer>,
 ) {
@@ -495,9 +518,14 @@ fn handle_equipped_item(
     }
 
     // Spawn new item model
-    commands.entity(player_entity).with_children(|parent| {
-        spawn_equipment_model_bundle(slot_name, item, parent, asset_server);
-    });
+    spawn_equipment_model_bundle(
+        slot_name,
+        item,
+        commands,
+        gl_transform_query,
+        name_query,
+        asset_server,
+    );
 }
 
 fn handle_unequipped_item(
@@ -513,52 +541,47 @@ fn handle_unequipped_item(
 fn spawn_equipment_model_bundle(
     slot_name: &EquipmentSlotName,
     item: &Item,
-    entity_spawner: &mut impl EntitySpawner,
+    commands: &mut Commands,
+    gl_transform_query: &Query<&GlobalTransform>,
+    name_query: &Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
     asset_server: &Res<AssetServer>,
 ) {
-    if let Some(path) = item.model_path() {
-        entity_spawner.spawn((
-            slot_name.clone(),
-            item.clone(),
-            SceneBundle {
-                scene: asset_server.load(path),
-                ..default()
-            },
-            Name::new(format!("{} Equipment Model", slot_name)),
-        ));
+    let target = slot_name.query_target(name_query);
+    let direction = slot_name.query_direction(name_query);
+
+    if let (Some(target_entity), Some(direction_entity), Some(path)) =
+        (target, direction, item.model_path())
+    {
+        if let (Ok(target_gl_transform), Ok(direction_gl_transform)) = (
+            gl_transform_query.get(target_entity),
+            gl_transform_query.get(direction_entity),
+        ) {
+            // TODO: fix models not being spawned in the correct orientation:
+            if let Ok(direction) =
+                Dir3::new(direction_gl_transform.translation() - target_gl_transform.translation())
+            {
+                commands.entity(target_entity).with_children(|parent| {
+                    let mut transform = Transform::default();
+                    transform.look_to(direction, Vec3::Y);
+
+                    parent.spawn((
+                        slot_name.clone(),
+                        item.clone(),
+                        SceneBundle {
+                            scene: asset_server.load(path),
+                            transform,
+                            ..default()
+                        },
+                        Name::new(format!("{} Equipment Model", slot_name)),
+                    ));
+                });
+            }
+        }
     }
 }
-
-// TODO: remove
-// fn debug_move_sword_on_right_hand(
-//     mut debug_sword_query: Query<&mut Transform, (With<DebugSword>, Without<Player>)>,
-//     right_hand_query: Query<
-//         (Entity, &Name, &GlobalTransform),
-//         (Without<DebugSword>, Without<Player>),
-//     >,
-// ) {
-//     // mixamorig:RightHand
-//     // Right_Hand_Grip_Target
-//     // Right_Hand_Grip_Direction
-
-//     let target = right_hand_query
-//         .iter()
-//         .find(|(_, name, _)| name.to_string() == String::from("Right_Hand_Grip_Target"));
-
-//     let direction = right_hand_query
-//         .iter()
-//         .find(|(_, name, _)| name.to_string() == String::from("Right_Hand_Grip_Direction"));
-
-//     match (target, direction) {
-//         (Some((_, _, target_gl_transform)), Some((_, _, direction_gl_transform))) => {
-//             let mut debug_sword_transform = debug_sword_query.get_single_mut().unwrap();
-
-//             debug_sword_transform.translation = target_gl_transform.translation().clone();
-//             debug_sword_transform.look_at(direction_gl_transform.translation().clone(), Vec3::Y);
-//         }
-//         _ => {}
-//     }
-// }
 
 fn player_ground_movement(
     camera_query: Query<&Transform, (With<MainCamera>, Without<Player>)>,
