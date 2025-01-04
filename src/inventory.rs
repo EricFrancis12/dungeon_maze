@@ -267,7 +267,7 @@ impl EquipmentSlotName {
             }
     }
 
-    pub fn matches_direction(&self, name: &Name) -> bool {
+    pub fn _matches_direction(&self, name: &Name) -> bool {
         name.to_string()
             == match self {
                 Self::LeftHand => String::from("Left_Hand_Grip_Direction"),
@@ -285,13 +285,13 @@ impl EquipmentSlotName {
             .map(|(e, _)| e)
     }
 
-    pub fn query_direction<'a>(
+    pub fn _query_direction<'a>(
         &self,
         query: impl IntoIterator<Item = (Entity, &'a Name)>,
     ) -> Option<Entity> {
         query
             .into_iter()
-            .find(|(_, name)| self.matches_direction(name))
+            .find(|(_, name)| self._matches_direction(name))
             .map(|(e, _)| e)
     }
 }

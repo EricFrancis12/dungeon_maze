@@ -48,7 +48,8 @@ impl Plugin for PlayerPlugin {
             .add_systems(
                 Update,
                 (
-                    render_equiped_items,
+                    spawn_starting_equiped_items,
+                    spawn_new_equiped_items,
                     toggle_player_sprinting,
                     player_ground_movement,
                     temp_health_regen,
@@ -380,7 +381,6 @@ impl TempAmt {
 
 fn spawn_player(
     mut commands: Commands,
-    gl_transform_query: Query<&GlobalTransform>,
     name_query: Query<
         (Entity, &Name),
         (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
@@ -457,7 +457,6 @@ fn spawn_player(
                 &slot_name,
                 item,
                 &mut commands,
-                &gl_transform_query,
                 &name_query,
                 &asset_server,
             );
@@ -465,10 +464,61 @@ fn spawn_player(
     }
 }
 
-fn render_equiped_items(
+fn update_equiped_items(
+    mut commands: &mut Commands,
+    name_query: &Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
+    slot_name_query: &Query<(Entity, &EquipmentSlotName, &Item)>,
+    asset_server: &Res<AssetServer>,
+    inventory: &Res<Inventory>,
+) {
+    for slot_name in EquipmentSlotName::iter() {
+        if let Some(item) = inventory.equipment.at(&slot_name) {
+            handle_equipped_item(
+                &slot_name,
+                item,
+                &mut commands,
+                &name_query,
+                &slot_name_query,
+                &asset_server,
+            );
+        } else {
+            handle_unequipped_item(&slot_name, &mut commands, &slot_name_query);
+        }
+    }
+}
+
+fn spawn_starting_equiped_items(
+    mut commands: Commands,
+    name_query: Query<
+        (Entity, &Name),
+        (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
+    >,
+    added_name_query: Query<&Name, Added<Name>>,
+    slot_name_query: Query<(Entity, &EquipmentSlotName, &Item)>,
+    asset_server: Res<AssetServer>,
+    inventory: Res<Inventory>,
+) {
+    for name in added_name_query.iter() {
+        for slot_name in EquipmentSlotName::iter() {
+            if slot_name.matches_target(name) {
+                update_equiped_items(
+                    &mut commands,
+                    &name_query,
+                    &slot_name_query,
+                    &asset_server,
+                    &inventory,
+                );
+            }
+        }
+    }
+}
+
+fn spawn_new_equiped_items(
     mut commands: Commands,
     mut event_reader: EventReader<InventoryChanged>,
-    gl_transform_query: Query<&GlobalTransform>,
     name_query: Query<
         (Entity, &Name),
         (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
@@ -478,21 +528,13 @@ fn render_equiped_items(
     inventory: Res<Inventory>,
 ) {
     for _ in event_reader.read() {
-        for slot_name in EquipmentSlotName::iter() {
-            if let Some(item) = inventory.equipment.at(&slot_name) {
-                handle_equipped_item(
-                    &slot_name,
-                    item,
-                    &mut commands,
-                    &gl_transform_query,
-                    &name_query,
-                    &slot_name_query,
-                    &asset_server,
-                );
-            } else {
-                handle_unequipped_item(&slot_name, &mut commands, &slot_name_query);
-            }
-        }
+        update_equiped_items(
+            &mut commands,
+            &name_query,
+            &slot_name_query,
+            &asset_server,
+            &inventory,
+        );
     }
 }
 
@@ -500,7 +542,6 @@ fn handle_equipped_item(
     slot_name: &EquipmentSlotName,
     item: &Item,
     commands: &mut Commands,
-    gl_transform_query: &Query<&GlobalTransform>,
     name_query: &Query<
         (Entity, &Name),
         (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
@@ -518,14 +559,7 @@ fn handle_equipped_item(
     }
 
     // Spawn new item model
-    spawn_equipment_model_bundle(
-        slot_name,
-        item,
-        commands,
-        gl_transform_query,
-        name_query,
-        asset_server,
-    );
+    spawn_equipment_model_bundle(slot_name, item, commands, name_query, asset_server);
 }
 
 fn handle_unequipped_item(
@@ -542,7 +576,6 @@ fn spawn_equipment_model_bundle(
     slot_name: &EquipmentSlotName,
     item: &Item,
     commands: &mut Commands,
-    gl_transform_query: &Query<&GlobalTransform>,
     name_query: &Query<
         (Entity, &Name),
         (Without<Player>, Without<EquipmentSlotName>, Without<Item>),
@@ -550,36 +583,20 @@ fn spawn_equipment_model_bundle(
     asset_server: &Res<AssetServer>,
 ) {
     let target = slot_name.query_target(name_query);
-    let direction = slot_name.query_direction(name_query);
 
-    if let (Some(target_entity), Some(direction_entity), Some(path)) =
-        (target, direction, item.model_path())
-    {
-        if let (Ok(target_gl_transform), Ok(direction_gl_transform)) = (
-            gl_transform_query.get(target_entity),
-            gl_transform_query.get(direction_entity),
-        ) {
-            // TODO: fix models not being spawned in the correct orientation:
-            if let Ok(direction) =
-                Dir3::new(direction_gl_transform.translation() - target_gl_transform.translation())
-            {
-                commands.entity(target_entity).with_children(|parent| {
-                    let mut transform = Transform::default();
-                    transform.look_to(direction, Vec3::Y);
-
-                    parent.spawn((
-                        slot_name.clone(),
-                        item.clone(),
-                        SceneBundle {
-                            scene: asset_server.load(path),
-                            transform,
-                            ..default()
-                        },
-                        Name::new(format!("{} Equipment Model", slot_name)),
-                    ));
-                });
-            }
-        }
+    if let (Some(target_entity), Some(path)) = (target, item.model_path()) {
+        // TODO: fix models not being spawned in the correct orientation:
+        commands.entity(target_entity).with_children(|parent| {
+            parent.spawn((
+                slot_name.clone(),
+                item.clone(),
+                SceneBundle {
+                    scene: asset_server.load(path),
+                    ..default()
+                },
+                Name::new(format!("{} Equipment Model", slot_name)),
+            ));
+        });
     }
 }
 
