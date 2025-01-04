@@ -69,9 +69,9 @@ impl PlayerAnimation {
             Self::UnarmedLeftLightAttack => 5,
             Self::UnarmedRightHeavyAttack => 6,
             Self::UnarmedRightLightAttack => 7,
-            Self::OneHandedSlashLeftHeavyAttack => 8,
-            Self::OneHandedSlashLeftLightAttack => 9,
-            Self::OneHandedSlashRightHeavyAttack => 10,
+            Self::OneHandedSlashLeftHeavyAttack => todo!(),
+            Self::OneHandedSlashLeftLightAttack => todo!(),
+            Self::OneHandedSlashRightHeavyAttack => todo!(),
         }
     }
 
@@ -161,7 +161,6 @@ fn setup_animations(
                     .from_asset("models/Man.glb"), // slash right light attack
                 GltfAssetLabel::Animation(PlayerAnimation::Running.index())
                     .from_asset("models/Man.glb"), // running
-                // TODO: add slash animations here (left heavy, left light, right heavy)
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftHeavyAttack.index())
                     .from_asset("models/Man.glb"), // unarmed left heavy attack
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftLightAttack.index())
