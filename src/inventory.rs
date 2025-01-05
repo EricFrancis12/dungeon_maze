@@ -2,7 +2,10 @@ use crate::{
     animation::PlayerAnimation,
     interaction::{Interactable, PendingInteractionExecuted},
     menu::{DragState, Dragging, Menu},
-    player::attack::{AttackHand, AttackType},
+    player::{
+        attack::{AttackHand, AttackType},
+        DmgType,
+    },
     should_not_happen,
     utils::entity::get_n_parent,
     world::{bundle::special::OCItemContainer, ChunkCellMarker},
@@ -96,6 +99,22 @@ impl ItemName {
             ItemType::Weapon => true,
             ItemType::Consumable | ItemType::RawMaterial => false,
         }
+    }
+
+    pub fn base_dmg(&self) -> Vec<(DmgType, f32)> {
+        match self {
+            Self::Broadsword => vec![(DmgType::Slash, 30.0)],
+            Self::Katana => vec![(DmgType::Slash, 40.0)],
+            _ => {
+                should_not_happen!("ItemName {} does not deal damage", self);
+                Vec::new()
+            }
+        }
+    }
+
+    pub fn calc_dmg(&self, _: &AttackType) -> Vec<(DmgType, f32)> {
+        // TODO: ...
+        self.base_dmg()
     }
 
     pub fn ui_image(&self, asset_server: &Res<AssetServer>) -> UiImage {
@@ -247,6 +266,14 @@ impl Item {
 
     pub fn is_equipable_at(&self, name: &EquipmentSlotName) -> bool {
         self.name.is_equipable_at(name)
+    }
+
+    fn _base_dmg(&self) -> Vec<(DmgType, f32)> {
+        self.name.base_dmg()
+    }
+
+    pub fn calc_dmg(&self, attack_type: &AttackType) -> Vec<(DmgType, f32)> {
+        self.name.calc_dmg(attack_type)
     }
 }
 

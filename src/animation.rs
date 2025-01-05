@@ -299,12 +299,12 @@ fn change_player_animation(
 
 fn on_finish_attack_animation(
     animation_player_query: Query<&AnimationPlayer, With<AnimationTransitions>>,
-    player_animation: Res<State<PlayerAnimation>>,
+    player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
 ) {
     for animation_player in animation_player_query.iter() {
         for (_, active_animation) in animation_player.playing_animations() {
-            if active_animation.is_finished() && *player_animation.get() != PlayerAnimation::Idle {
+            if active_animation.is_finished() && *player_state.get() != PlayerState::Walking {
                 next_player_state.set(PlayerState::Walking);
             }
         }

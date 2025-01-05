@@ -10,7 +10,9 @@ use crate::{
     utils::{IncrCounter, _max, _min_max_or_betw},
 };
 
-use attack::{charge_up_and_release_attack, AttackChargeUp};
+use attack::{
+    charge_up_and_release_attack, equipment_attack_collisions, reset_entities_hit, AttackChargeUp,
+};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_third_person_camera::*;
@@ -57,11 +59,15 @@ impl Plugin for PlayerPlugin {
                     temp_dmg_resists,
                     temp_heal_health_modifiers,
                     temp_heal_stamina_modifiers,
-                    player_stamina_while_sprinting,
+                    tick_dmg_immune,
+                    drain_stamina_while_sprinting.run_if(in_state(PlayerState::Sprinting)),
                     handle_take_damage,
                     handle_heal_health,
                     handle_heal_stamina,
+                    despawn_dead_entities,
                     charge_up_and_release_attack.run_if(in_state(MenuOpen(false))),
+                    equipment_attack_collisions,
+                    reset_entities_hit,
                 ),
             )
             .add_systems(OnEnter(PlayerState::Walking), change_player_speed)
@@ -86,7 +92,7 @@ impl PlayerState {
     }
 }
 
-#[derive(Event)]
+#[derive(Debug, Event)]
 pub struct TakeDamage(pub Vec<(DmgType, f32)>, pub Entity);
 
 #[derive(Event)]
@@ -246,7 +252,7 @@ regenerator_impl!(Health);
 modify_value!(Health);
 
 impl Health {
-    fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
+    pub fn new(value: f32, max_value: f32, base_regen: f32) -> Self {
         Self {
             value,
             max_value,
@@ -284,7 +290,13 @@ impl Stamina {
     }
 }
 
-#[derive(Clone, EnumIter, Eq, Hash, PartialEq)]
+#[derive(Component)]
+pub struct DmgTarget;
+
+#[derive(Component)]
+pub struct Killable;
+
+#[derive(Clone, Debug, EnumIter, Eq, Hash, PartialEq)]
 pub enum DmgType {
     Blunt,
     Slash,
@@ -296,7 +308,7 @@ pub enum DmgType {
 }
 
 #[derive(Component)]
-struct DmgResist {
+pub struct DmgResist {
     base_resists: HashMap<DmgType, Vec<f32>>,
     static_resists: HashMap<DmgType, Vec<f32>>,
     temp_resists: HashMap<DmgType, Vec<TempAmt>>,
@@ -309,7 +321,7 @@ impl Default for DmgResist {
 }
 
 impl DmgResist {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let hm: HashMap<DmgType, Vec<f32>> =
             DmgType::iter().fold(HashMap::new(), |mut acc, curr| {
                 acc.insert(curr, Vec::new());
@@ -327,6 +339,14 @@ impl DmgResist {
             static_resists: hm.clone(),
             temp_resists,
         }
+    }
+
+    pub fn add_static_resist(&mut self, dmg_type: &DmgType, amt: f32) {
+        self.static_resists.get_mut(dmg_type).unwrap().push(amt);
+    }
+
+    pub fn _add_temp_resist(&mut self, dmg_type: &DmgType, amt: TempAmt) {
+        self.temp_resists.get_mut(dmg_type).unwrap().push(amt);
     }
 
     fn get_base_resist(&self, dmg_type: &DmgType) -> f32 {
@@ -357,6 +377,23 @@ impl DmgResist {
         self.temp_resists.iter_mut().for_each(|(_, v)| {
             v.retain_mut(|tm| tm.tick() != 0);
         });
+    }
+}
+
+#[derive(Component)]
+pub struct DmgImmune {
+    counter: Option<IncrCounter>,
+}
+
+impl DmgImmune {
+    fn _new(frames: Option<u32>) -> Self {
+        Self {
+            counter: frames.map(|f| IncrCounter::new(f as i32, -1)),
+        }
+    }
+
+    fn tick(&mut self) {
+        self.counter.map(|mut c| c.tick());
     }
 }
 
@@ -590,6 +627,8 @@ fn spawn_equipment_model_bundle(
             parent.spawn((
                 slot_name.clone(),
                 item.clone(),
+                Sensor,
+                Collider::cuboid(0.1, 0.1, 0.1),
                 SceneBundle {
                     scene: asset_server.load(path),
                     ..default()
@@ -731,7 +770,13 @@ fn temp_heal_stamina_modifiers(mut stamina_query: Query<&mut Stamina>) {
     }
 }
 
-fn player_stamina_while_sprinting(
+fn tick_dmg_immune(mut dmg_immune_query: Query<&mut DmgImmune>) {
+    for mut dmg_immune in dmg_immune_query.iter_mut() {
+        dmg_immune.tick();
+    }
+}
+
+fn drain_stamina_while_sprinting(
     mut player_query: Query<&mut Stamina, With<Player>>,
     player_state: Res<State<PlayerState>>,
     mut next_player_state: ResMut<NextState<PlayerState>>,
@@ -759,10 +804,17 @@ fn handle_take_damage(
         Option<&mut Health>,
         Option<&mut Stamina>,
         Option<&DmgResist>,
+        Option<&DmgImmune>,
     )>,
 ) {
     for event in event_reader.read() {
-        if let Some((_, mut h, mut s, dr)) = query.iter_mut().find(|(e, _, _, _)| *e == event.1) {
+        if let Some((_, mut h, mut s, dr, di)) =
+            query.iter_mut().find(|(e, _, _, _, _)| *e == event.1)
+        {
+            if di.is_some() {
+                continue;
+            }
+
             let dmg_resist = match dr {
                 Some(d) => d,
                 None => &DmgResist::new(),
@@ -830,6 +882,17 @@ fn handle_heal_stamina(
                 "received HealStamina event on entity that does not exist: {}",
                 event.1,
             );
+        }
+    }
+}
+
+fn despawn_dead_entities(
+    mut commands: Commands,
+    killable_query: Query<(Entity, &Health), With<Killable>>,
+) {
+    for (entity, health) in killable_query.iter() {
+        if health.value <= 0.0 {
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

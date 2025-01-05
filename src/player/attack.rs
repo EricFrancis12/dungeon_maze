@@ -1,8 +1,21 @@
 use bevy::prelude::*;
+use bevy_rapier3d::{plugin::RapierContext, prelude::Collider};
 
-use crate::utils::IncrCounter;
+use crate::{
+    inventory::{EquipmentSlotName, Item},
+    utils::IncrCounter,
+};
 
-use super::PlayerState;
+use super::{DmgTarget, Player, PlayerState, TakeDamage};
+
+#[derive(Component)]
+pub struct EntitiesHit(pub Vec<Entity>);
+
+impl EntitiesHit {
+    pub fn new(entities: Vec<Entity>) -> Self {
+        Self(entities)
+    }
+}
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Resource)]
 pub struct AttackChargeUp {
@@ -100,6 +113,72 @@ pub fn charge_up_and_release_attack(
             let attack_type = attack_charge_up.release();
             next_player_state.set(PlayerState::Attacking(attack_type, attack_hand));
             break;
+        }
+    }
+}
+
+pub fn equipment_attack_collisions(
+    mut commands: Commands,
+    mut event_writer: EventWriter<TakeDamage>,
+    mut item_query: Query<
+        (Entity, &EquipmentSlotName, &Item, Option<&mut EntitiesHit>),
+        (With<Collider>, Without<Player>),
+    >,
+    dmg_target_query: Query<
+        Entity,
+        (
+            With<DmgTarget>,
+            With<Collider>,
+            Without<Player>,
+            Without<EntitiesHit>,
+            Without<EquipmentSlotName>,
+            Without<Item>,
+        ),
+    >,
+    rapier_context: Res<RapierContext>,
+    player_state: Res<State<PlayerState>>,
+) {
+    if let PlayerState::Attacking(attack_type, attack_hand) = *player_state.get() {
+        for (item_entity, slot_name, item, mut eh) in item_query.iter_mut() {
+            if *slot_name != EquipmentSlotName::from(&attack_hand) {
+                continue;
+            }
+
+            for entity in dmg_target_query.iter() {
+                if rapier_context
+                    .intersection_pair(entity, item_entity)
+                    .unwrap_or(false)
+                {
+                    // TODO: account for damage modifiers before dealing damage
+
+                    if let Some(entities_hit) = eh.as_mut() {
+                        if entities_hit.0.contains(&entity) {
+                            return;
+                        }
+                        entities_hit.0.push(entity);
+                    } else {
+                        commands
+                            .entity(item_entity)
+                            .insert(EntitiesHit::new(vec![entity]));
+                    }
+
+                    event_writer.send(TakeDamage(item.calc_dmg(&attack_type), entity));
+                }
+            }
+        }
+    }
+}
+
+pub fn reset_entities_hit(
+    mut commands: Commands,
+    mut event_reader: EventReader<StateTransitionEvent<PlayerState>>,
+    entities_hit_query: Query<Entity, (With<EntitiesHit>, With<EquipmentSlotName>)>,
+) {
+    for event in event_reader.read() {
+        if let Some(PlayerState::Attacking(..)) = &event.exited {
+            for entity in entities_hit_query.iter() {
+                commands.entity(entity).remove::<EntitiesHit>();
+            }
         }
     }
 }

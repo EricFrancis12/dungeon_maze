@@ -89,7 +89,9 @@ fn switch_cameras(
         ray_dir,
         distance,
         true,
-        QueryFilter::default().exclude_collider(player_entity),
+        QueryFilter::new()
+            .exclude_sensors()
+            .exclude_collider(player_entity),
     ) {
         let direction = intersection.point + intersection.normal;
         let projected_hit_point = intersection.point.move_towards(direction, CAMERA_MARGIN);

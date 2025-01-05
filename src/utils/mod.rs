@@ -62,16 +62,16 @@ impl CyclicCounter {
 }
 
 #[cfg(debug_assertions)]
-pub fn contains_any<T, S1, S2>(sized1: S1, sized2: S2) -> bool
+pub fn contains_any<T, S1, S2>(sized_1: S1, sized_2: S2) -> bool
 where
     T: PartialEq,
     S1: IntoIterator<Item = T>,
     S2: IntoIterator<Item = T>,
     S2: Clone,
 {
-    let sized2_vec: Vec<T> = sized2.into_iter().collect();
-    for item in sized1 {
-        if sized2_vec.iter().any(|x| x == &item) {
+    let sized_2_vec: Vec<T> = sized_2.into_iter().collect();
+    for t in sized_1 {
+        if sized_2_vec.iter().any(|_t| _t == &t) {
             return true;
         }
     }

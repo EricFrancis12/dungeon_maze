@@ -1,6 +1,6 @@
 use crate::{
     camera::MainCamera,
-    player::{Player, PlayerState},
+    player::{DmgResist, DmgTarget, DmgType, Health, Killable, Player, PlayerState},
     utils::contains_any,
     world::ChunkCellMarker,
 };
@@ -14,15 +14,16 @@ pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
-        let args: Vec<String> = env::args().collect();
+        let owned_args: Vec<String> = env::args().collect();
+        let args: Vec<&str> = owned_args.iter().map(String::as_str).collect();
 
-        let specified = |s: String| contains_any(&args, &[s, String::from("a")]);
+        let specified = |s: &str| contains_any(&args, &[s, "a"]);
 
-        if specified(String::from("world")) {
+        if specified("world") {
             app.add_plugins(WorldInspectorPlugin::new());
         }
 
-        if specified(String::from("rapier")) {
+        if specified("rapier") {
             app.add_plugins(RapierDebugRenderPlugin {
                 enabled: true,
                 mode: DebugRenderMode::all(),
@@ -30,12 +31,19 @@ impl Plugin for DebugPlugin {
             });
         }
 
-        if specified(String::from("fly")) {
-            app.add_systems(Update, player_flight_movement);
+        if specified("fly") {
+            app.add_systems(
+                Update,
+                player_flight_movement.run_if(in_state(PlayerState::Walking)),
+            );
         }
 
-        let position_arg = specified(String::from("position"));
-        let compass_arg = specified(String::from("compass"));
+        if specified("enemy") {
+            app.add_systems(Startup, spawn_test_enemy);
+        }
+
+        let position_arg = specified("position");
+        let compass_arg = specified("compass");
 
         if position_arg || compass_arg {
             app.add_systems(Startup, spawn_ui_overlay);
@@ -74,14 +82,9 @@ struct CompassHand(f32);
 fn player_flight_movement(
     camera_query: Query<&Transform, With<MainCamera>>,
     mut player_query: Query<&mut Transform, With<Player>>,
-    player_state: Res<State<PlayerState>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    if *player_state.get() != PlayerState::Walking {
-        return;
-    }
-
     for mut player_transform in player_query.iter_mut() {
         let camera_transform = match camera_query.get_single() {
             Ok(ct) => ct,
@@ -105,6 +108,29 @@ fn player_flight_movement(
             player_transform.translation.y += movement.y;
         }
     }
+}
+
+fn spawn_test_enemy(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+    let mesh: Mesh = Cuboid::new(1.0, 2.0, 1.0).into();
+
+    let mut dmg_resist = DmgResist::new();
+    dmg_resist.add_static_resist(&DmgType::Slash, 20.0);
+
+    commands.spawn((
+        Sensor,
+        ActiveEvents::COLLISION_EVENTS,
+        Collider::cuboid(1.0, 2.0, 1.0),
+        PbrBundle {
+            mesh: meshes.add(mesh),
+            transform: Transform::from_translation(Vec3::new(0.0, 1.0, 0.0)),
+            ..default()
+        },
+        Health::new(100.0, 100.0, 0.0),
+        dmg_resist,
+        DmgTarget,
+        Killable,
+        Name::new("Static Cuboid"),
+    ));
 }
 
 fn spawn_ui_overlay(mut commands: Commands) {
