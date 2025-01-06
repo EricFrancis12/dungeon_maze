@@ -628,6 +628,7 @@ fn spawn_equipment_model_bundle(
                 slot_name.clone(),
                 item.clone(),
                 Sensor,
+                // TODO: impliment colliders in the shape of the held weapon
                 Collider::cuboid(0.1, 0.1, 0.1),
                 SceneBundle {
                     scene: asset_server.load(path),
