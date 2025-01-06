@@ -341,7 +341,7 @@ impl DmgResist {
         }
     }
 
-    pub fn add_static_resist(&mut self, dmg_type: &DmgType, amt: f32) {
+    pub fn _add_static_resist(&mut self, dmg_type: &DmgType, amt: f32) {
         self.static_resists.get_mut(dmg_type).unwrap().push(amt);
     }
 

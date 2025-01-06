@@ -69,9 +69,9 @@ impl PlayerAnimation {
             Self::UnarmedLeftLightAttack => 5,
             Self::UnarmedRightHeavyAttack => 6,
             Self::UnarmedRightLightAttack => 7,
-            Self::OneHandedSlashLeftHeavyAttack => todo!(),
-            Self::OneHandedSlashLeftLightAttack => todo!(),
-            Self::OneHandedSlashRightHeavyAttack => todo!(),
+            Self::OneHandedSlashLeftHeavyAttack => 7, // TODO
+            Self::OneHandedSlashLeftLightAttack => 7, // TODO
+            Self::OneHandedSlashRightHeavyAttack => 7, // TODO
         }
     }
 

@@ -114,7 +114,7 @@ fn spawn_test_enemy(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let mesh: Mesh = Cuboid::new(1.0, 2.0, 1.0).into();
 
     let mut dmg_resist = DmgResist::new();
-    dmg_resist.add_static_resist(&DmgType::Slash, 20.0);
+    dmg_resist._add_static_resist(&DmgType::Slash, 20.0);
 
     commands.spawn((
         Sensor,
