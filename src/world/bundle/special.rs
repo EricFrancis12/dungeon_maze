@@ -2,11 +2,12 @@ use crate::{
     animation::CyclicAnimation,
     interaction::Interactable,
     inventory::Item,
+    meshes::{new_staircase_mesh, new_stairs_mesh},
     world::{data::WorldData, ChunkCellMarker},
 };
 
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::{Collider, RigidBody};
+use bevy_rapier3d::prelude::{Collider, ComputedColliderShape, RigidBody};
 use rand::Rng;
 
 use super::{item::spawn_item_bundle, EntitySpawner};
@@ -43,7 +44,7 @@ pub fn spawn_chair_bundle(
             parent.spawn((
                 SceneBundle {
                     scene: asset_server
-                        .load(GltfAssetLabel::Scene(0).from_asset("models/Chair.glb")),
+                        .load(GltfAssetLabel::Scene(0).from_asset("models/chair.glb")),
                     transform: Transform::from_xyz(0.0, -CHAIR_COLLIDER_HY, 0.0),
                     ..default()
                 },
@@ -81,7 +82,7 @@ pub fn spawn_treasure_chest_bundle(
             parent.spawn((
                 SceneBundle {
                     scene: asset_server
-                        .load(GltfAssetLabel::Scene(0).from_asset("models/Treasure_Chest.glb")),
+                        .load(GltfAssetLabel::Scene(0).from_asset("models/treasure_chest.glb")),
                     transform: Transform::from_xyz(0.0, -TREASURE_CHEST_COLLIDER_HY, 0.0),
                     ..default()
                 },
@@ -115,89 +116,58 @@ pub fn spawn_treasure_chest_bundle(
 
 pub fn spawn_staircase_bundle(
     entity_spawner: &mut impl EntitySpawner,
-    asset_server: &Res<AssetServer>,
+    meshes: &mut ResMut<Assets<Mesh>>,
 ) {
-    let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
+    let mesh = new_staircase_mesh();
 
-    let step_collider = Collider::cuboid(0.2, 0.1, 0.82);
-    let flat_collider = Collider::cuboid(0.5, 0.01, 2.0);
-
-    // lower steps
-    for i in 0..7 {
-        shapes.push((
-            Vec3 {
-                x: -0.9 + (i as f32 * 0.3),
-                y: 0.1 + (i as f32 * 0.3),
-                z: -1.18,
-            },
-            Quat::default(),
-            step_collider.clone(),
-        ));
-    }
-
-    // upper steps
-    for j in 0..5 {
-        shapes.push((
-            Vec3 {
-                x: 0.3 - (j as f32 * 0.3),
-                y: 2.5 + (j as f32 * 0.3),
-                z: 1.18,
-            },
-            Quat::default(),
-            step_collider.clone(),
-        ));
-    }
-
-    // lower flat section
-    shapes.push((
-        Vec3 {
-            x: 1.5,
-            y: 2.2,
-            z: 0.0,
-        },
-        Quat::default(),
-        flat_collider.clone(),
-    ));
-
-    // upper flat section
-    shapes.push((
-        Vec3 {
-            x: -1.5,
-            y: 4.0,
-            z: 0.0,
-        },
-        Quat::default(),
-        flat_collider,
-    ));
-
-    entity_spawner
-        .spawn((
-            SpatialBundle::default(),
-            RigidBody::Fixed,
-            Collider::compound(shapes),
-            Name::new("Staircase"),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                SceneBundle {
-                    scene: asset_server
-                        .load(GltfAssetLabel::Scene(0).from_asset("models/Staircase.glb")),
-                    transform: Transform {
-                        translation: Vec3 {
-                            x: 0.0,
-                            y: 2.0,
-                            z: -2.0,
-                        },
-                        scale: Vec3 {
-                            x: 2.0,
-                            y: 2.0,
-                            z: 2.0,
-                        },
-                        ..default()
-                    },
-                    ..default()
+    entity_spawner.spawn((
+        Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
+        PbrBundle {
+            mesh: meshes.add(mesh),
+            transform: Transform {
+                translation: Vec3 {
+                    x: 0.0,
+                    y: 2.0,
+                    z: -2.0,
                 },
-                Name::new("Staircase Model"),
-            ));
-        });
+                scale: Vec3 {
+                    x: 2.0,
+                    y: 2.0,
+                    z: 2.0,
+                },
+                ..default()
+            },
+            ..default()
+        },
+        Name::new("Stairs"),
+    ));
+}
+
+pub fn spawn_stairs_bundle(
+    entity_spawner: &mut impl EntitySpawner,
+    meshes: &mut ResMut<Assets<Mesh>>,
+) {
+    let mesh = new_stairs_mesh();
+
+    entity_spawner.spawn((
+        Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap(),
+        PbrBundle {
+            mesh: meshes.add(mesh),
+            transform: Transform {
+                translation: Vec3 {
+                    x: 0.0,
+                    y: 2.0,
+                    z: -2.0,
+                },
+                scale: Vec3 {
+                    x: 2.0,
+                    y: 2.0,
+                    z: 2.0,
+                },
+                ..default()
+            },
+            ..default()
+        },
+        Name::new("Stairs"),
+    ));
 }

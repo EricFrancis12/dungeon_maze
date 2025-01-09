@@ -40,7 +40,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_text_popup::TextPopupPlugin;
 
-pub const SEED: u32 = 1234;
+pub const SEED: u32 = 123456;
 
 fn main() {
     assert_eq!(

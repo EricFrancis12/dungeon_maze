@@ -100,6 +100,7 @@ pub enum CellSpecial {
     Chair,
     TreasureChest,
     Staircase,
+    Stairs, // Stairs currently run from -x to +x (going from base to peak)
 }
 
 impl CellSpecial {
@@ -109,6 +110,7 @@ impl CellSpecial {
             Self::Chair => 0.38,
             Self::TreasureChest => 0.38,
             Self::Staircase => 0.18,
+            Self::Stairs => 0.18,
         }
     }
 }

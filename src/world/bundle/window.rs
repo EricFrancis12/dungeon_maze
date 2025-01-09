@@ -44,7 +44,7 @@ pub fn spawn_window_bundle(
 
     entity_spawner.spawn((
         SceneBundle {
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Window.glb")),
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/window.glb")),
             transform: transforms[0],
             ..default()
         },

@@ -44,7 +44,7 @@ pub fn spawn_door_bundle(
 
     entity_spawner.spawn((
         SceneBundle {
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/Door.glb")),
+            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/door.glb")),
             transform: transforms[0],
             ..default()
         },

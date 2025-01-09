@@ -45,7 +45,7 @@ impl Plugin for PlayerPlugin {
             .add_event::<HealHealth>()
             .add_event::<HealStamina>()
             .init_state::<PlayerState>()
-            .insert_resource(AttackChargeUp::new(5, 15, None))
+            .insert_resource(AttackChargeUp::new(10, 15, None))
             .add_systems(Startup, spawn_player)
             .add_systems(
                 Update,
@@ -469,7 +469,7 @@ fn spawn_player(
             SceneBundle {
                 scene: asset_server.load(
                     GltfAssetLabel::Scene(PlayerAnimation::Idle.index())
-                        .from_asset("models/Man.glb"),
+                        .from_asset("models/man.glb"),
                 ),
                 transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
                 ..default()

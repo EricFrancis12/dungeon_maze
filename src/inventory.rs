@@ -140,8 +140,8 @@ impl ItemName {
 
     pub fn model_path(&self) -> Option<impl Into<AssetPath>> {
         match self {
-            Self::Broadsword => Some(GltfAssetLabel::Scene(0).from_asset("models/Broadsword.glb")),
-            Self::Katana => Some(GltfAssetLabel::Scene(0).from_asset("models/Katana.glb")),
+            Self::Broadsword => Some(GltfAssetLabel::Scene(0).from_asset("models/broadsword.glb")),
+            Self::Katana => Some(GltfAssetLabel::Scene(0).from_asset("models/katana.glb")),
             _ => {
                 should_not_happen!("expected ItemName with a 3d model, but got: {}", self);
                 None

@@ -10,7 +10,7 @@ fn test_item_merge_with_no_overflow() {
 
         let rem_item = item1.merge(item2);
 
-        assert_eq!(item1.amt, 48);
+        assert_eq!(item2.amt, 48);
         assert_eq!(rem_item, None);
     }
 }
