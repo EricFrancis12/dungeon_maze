@@ -1,5 +1,5 @@
 [package]
-name = "backrooms-maze"
+name = "dungeon-maze"
 version = "0.1.0"
 edition = "2021"
 

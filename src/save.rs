@@ -13,9 +13,9 @@ use std::{
     path::PathBuf,
 };
 
-const DATA_DIR_NAME: &str = "backrooms-maze";
+const DATA_DIR_NAME: &str = "dungeon-maze";
 const SAVE_DIR_NAME: &str = "saves";
-const SAVE_FILE_NAME: &str = "backrooms-maze-save.json";
+const SAVE_FILE_NAME: &str = "dungeon-maze-save.json";
 
 pub struct GameSavePlugin;
 
