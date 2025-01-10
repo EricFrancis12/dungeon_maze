@@ -834,6 +834,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_mesh_obj"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa1137d404a97d9c23e3a65d0ced35bfbae90bed3fcb977f5b84efd028032398"
+dependencies = [
+ "bevy",
+ "thiserror 2.0.10",
+]
+
+[[package]]
 name = "bevy_mikktspace"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1825,6 +1835,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
+ "bevy_mesh_obj",
  "bevy_rapier3d",
  "bevy_text_popup",
  "bevy_third_person_camera",
@@ -1836,7 +1847,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "thiserror 2.0.0",
+ "thiserror 2.0.10",
 ]
 
 [[package]]
@@ -4098,11 +4109,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.0"
+version = "2.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15291287e9bff1bc6f9ff3409ed9af665bec7a5fc8ac079ea96be07bca0e2668"
+checksum = "a3ac7f54ca534db81081ef1c1e7f6ea8a3ef428d2fc069097c079443d24124d3"
 dependencies = [
- "thiserror-impl 2.0.0",
+ "thiserror-impl 2.0.10",
 ]
 
 [[package]]
@@ -4118,9 +4129,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.0"
+version = "2.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22efd00f33f93fa62848a7cab956c3d38c8d43095efda1decfc2b3a5dc0b8972"
+checksum = "9e9465d30713b56a37ede7185763c3492a91be2f5fa68d958c44e41ab9248beb"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -7,8 +7,6 @@ pub enum Error {
     IO(std::io::Error),
     #[error("parsing error: {0}")]
     Parsing(String),
-    #[error("obj error: {0}")]
-    Obj(String),
     #[error("error occurred while saving")]
     Saving,
     #[error("error occurred while loading")]
