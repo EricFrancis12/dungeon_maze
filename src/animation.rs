@@ -154,23 +154,23 @@ fn setup_animations(
         .add_clips(
             [
                 GltfAssetLabel::Animation(PlayerAnimation::Idle.index())
-                    .from_asset("models/man.glb"), // idle
+                    .from_asset("embedded://models/man.glb"), // idle
                 GltfAssetLabel::Animation(PlayerAnimation::Jogging.index())
-                    .from_asset("models/man.glb"), // jogging
+                    .from_asset("embedded://models/man.glb"), // jogging
                 GltfAssetLabel::Animation(PlayerAnimation::OneHandedSlashRightLightAttack.index())
-                    .from_asset("models/man.glb"), // slash right light attack
+                    .from_asset("embedded://models/man.glb"), // slash right light attack
                 GltfAssetLabel::Animation(PlayerAnimation::Running.index())
-                    .from_asset("models/man.glb"), // running
+                    .from_asset("embedded://models/man.glb"), // running
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftHeavyAttack.index())
-                    .from_asset("models/man.glb"), // unarmed left heavy attack
+                    .from_asset("embedded://models/man.glb"), // unarmed left heavy attack
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedLeftLightAttack.index())
-                    .from_asset("models/man.glb"), // unarmed left light attack
+                    .from_asset("embedded://models/man.glb"), // unarmed left light attack
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedRightHeavyAttack.index())
-                    .from_asset("models/man.glb"), // unarmed right heavy attack
+                    .from_asset("embedded://models/man.glb"), // unarmed right heavy attack
                 GltfAssetLabel::Animation(PlayerAnimation::UnarmedRightLightAttack.index())
-                    .from_asset("models/man.glb"), // unarmed right light attack
-                GltfAssetLabel::Animation(1).from_asset("models/treasure_chest.glb"), // open
-                GltfAssetLabel::Animation(0).from_asset("models/treasure_chest.glb"), // close
+                    .from_asset("embedded://models/man.glb"), // unarmed right light attack
+                GltfAssetLabel::Animation(1).from_asset("embedded://models/treasure_chest.glb"), // open
+                GltfAssetLabel::Animation(0).from_asset("embedded://models/treasure_chest.glb"), // close
             ]
             .into_iter()
             .map(|path| asset_server.load(path)),

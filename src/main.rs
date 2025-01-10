@@ -37,6 +37,7 @@ use world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE};
 use debug::DebugPlugin;
 
 use bevy::prelude::*;
+use bevy_embedded_assets::EmbeddedAssetPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_text_popup::TextPopupPlugin;
 
@@ -53,8 +54,9 @@ fn main() {
 
     let mut app = App::new();
 
+    app.add_plugins((EmbeddedAssetPlugin::default(), DefaultPlugins));
+
     app.add_plugins((
-        DefaultPlugins,
         RapierPhysicsPlugin::<NoUserData>::default(),
         CursorPlugin,
         TextPopupPlugin,

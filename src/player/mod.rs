@@ -469,7 +469,7 @@ fn spawn_player(
             SceneBundle {
                 scene: asset_server.load(
                     GltfAssetLabel::Scene(PlayerAnimation::Idle.index())
-                        .from_asset("models/man.glb"),
+                        .from_asset("embedded://models/man.glb"),
                 ),
                 transform: Transform::from_xyz(0.0, -PLAYER_COLLIDER_HY, 0.0),
                 ..default()

@@ -120,19 +120,27 @@ impl ItemName {
     pub fn ui_image(&self, asset_server: &Res<AssetServer>) -> UiImage {
         UiImage {
             texture: match self {
-                Self::Coal => asset_server.load("images/coal.png"),
-                Self::Cotton => asset_server.load("images/cotton.png"),
-                Self::Flint => asset_server.load("images/flint.png"),
-                Self::HealthPotion => asset_server.load("images/health_potion.png"),
-                Self::StaminaPotion => asset_server.load("images/stamina_potion.png"),
-                Self::HealthRegenPotion => asset_server.load("images/health_regen_potion.png"),
-                Self::StaminaRegenPotion => asset_server.load("images/stamina_regen_potion.png"),
-                Self::HealthPoison => asset_server.load("images/health_poison.png"),
-                Self::StaminaPoison => asset_server.load("images/stamina_poison.png"),
-                Self::HealthRegenPoison => asset_server.load("images/health_regen_poison.png"),
-                Self::StaminaRegenPoison => asset_server.load("images/stamina_regen_poison.png"),
-                Self::Broadsword => asset_server.load("images/broadsword.png"),
-                Self::Katana => asset_server.load("images/katana.png"),
+                Self::Coal => asset_server.load("embedded://images/coal.png"),
+                Self::Cotton => asset_server.load("embedded://images/cotton.png"),
+                Self::Flint => asset_server.load("embedded://images/flint.png"),
+                Self::HealthPotion => asset_server.load("embedded://images/health_potion.png"),
+                Self::StaminaPotion => asset_server.load("embedded://images/stamina_potion.png"),
+                Self::HealthRegenPotion => {
+                    asset_server.load("embedded://images/health_regen_potion.png")
+                }
+                Self::StaminaRegenPotion => {
+                    asset_server.load("embedded://images/stamina_regen_potion.png")
+                }
+                Self::HealthPoison => asset_server.load("embedded://images/health_poison.png"),
+                Self::StaminaPoison => asset_server.load("embedded://images/stamina_poison.png"),
+                Self::HealthRegenPoison => {
+                    asset_server.load("embedded://images/health_regen_poison.png")
+                }
+                Self::StaminaRegenPoison => {
+                    asset_server.load("embedded://images/stamina_regen_poison.png")
+                }
+                Self::Broadsword => asset_server.load("embedded://images/broadsword.png"),
+                Self::Katana => asset_server.load("embedded://images/katana.png"),
             },
             ..default()
         }
@@ -140,8 +148,12 @@ impl ItemName {
 
     pub fn model_path(&self) -> Option<impl Into<AssetPath>> {
         match self {
-            Self::Broadsword => Some(GltfAssetLabel::Scene(0).from_asset("models/broadsword.glb")),
-            Self::Katana => Some(GltfAssetLabel::Scene(0).from_asset("models/katana.glb")),
+            Self::Broadsword => {
+                Some(GltfAssetLabel::Scene(0).from_asset("embedded://models/broadsword.glb"))
+            }
+            Self::Katana => {
+                Some(GltfAssetLabel::Scene(0).from_asset("embedded://models/katana.glb"))
+            }
             _ => {
                 should_not_happen!("expected ItemName with a 3d model, but got: {}", self);
                 None

@@ -66,13 +66,13 @@ pub fn spawn_cell_bundle(
         let noise_xyz = noise_from_xyz_seed(SEED, ccm.chunk_x, ccm.chunk_y, ccm.chunk_z);
 
         let path = if noise_xyz < -0.2 {
-            "images/wall-1.png"
+            "embedded://images/wall-1.png"
         } else if noise_xyz < 0.0 {
-            "images/wall-2.png"
+            "embedded://images/wall-2.png"
         } else if noise_xyz < 0.2 {
-            "images/wall-3.png"
+            "embedded://images/wall-3.png"
         } else {
-            "images/wall-4.png"
+            "embedded://images/wall-4.png"
         };
 
         let wall_texture_handle = asset_server.load(path);

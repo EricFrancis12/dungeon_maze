@@ -44,7 +44,7 @@ pub fn spawn_chair_bundle(
             parent.spawn((
                 SceneBundle {
                     scene: asset_server
-                        .load(GltfAssetLabel::Scene(0).from_asset("models/chair.glb")),
+                        .load(GltfAssetLabel::Scene(0).from_asset("embedded://models/chair.glb")),
                     transform: Transform::from_xyz(0.0, -CHAIR_COLLIDER_HY, 0.0),
                     ..default()
                 },
@@ -81,8 +81,9 @@ pub fn spawn_treasure_chest_bundle(
         .with_children(|parent| {
             parent.spawn((
                 SceneBundle {
-                    scene: asset_server
-                        .load(GltfAssetLabel::Scene(0).from_asset("models/treasure_chest.glb")),
+                    scene: asset_server.load(
+                        GltfAssetLabel::Scene(0).from_asset("embedded://models/treasure_chest.glb"),
+                    ),
                     transform: Transform::from_xyz(0.0, -TREASURE_CHEST_COLLIDER_HY, 0.0),
                     ..default()
                 },
