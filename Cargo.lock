@@ -848,9 +848,9 @@ dependencies = [
 
 [[package]]
 name = "bevy_mesh_obj"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa1137d404a97d9c23e3a65d0ced35bfbae90bed3fcb977f5b84efd028032398"
+checksum = "39fcdbd56e796026430d058b3f972117d3bc85cba1d3dc8f0d884f2d5ede680e"
 dependencies = [
  "bevy",
  "thiserror 2.0.10",
