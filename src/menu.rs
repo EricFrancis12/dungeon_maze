@@ -1,6 +1,8 @@
 use crate::{
     cursor::{CursorFollower, CursorPosition},
-    inventory::{EquipmentSlotName, Inventory, InventoryChanged, ItemName, ItemUsed},
+    inventory::{
+        equipment::EquipmentSlotName, item::ItemName, Inventory, InventoryChanged, ItemUsed,
+    },
     player::{
         DmgType, HealHealth, HealStamina, Health, Player, PlayerState, Regenerator, Stamina,
         TakeDamage,
@@ -9,7 +11,6 @@ use crate::{
     should_not_happen,
     utils::entity::get_n_parent,
 };
-
 use bevy::{prelude::*, ui::RelativeCursorPosition};
 use std::fmt;
 use strum::IntoEnumIterator;

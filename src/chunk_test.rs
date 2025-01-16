@@ -2,7 +2,6 @@ use crate::{
     world::{chunk_from_xyz_seed, make_nei_chunks_xyz, CellWall, GRID_SIZE},
     SEED,
 };
-
 use chrono::Utc;
 use std::fs;
 

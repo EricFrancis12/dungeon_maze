@@ -1,10 +1,11 @@
-use super::{
-    super::{chunk_from_xyz_seed, ChunkCellMarker, ChunkMarker, CELL_SIZE, CHUNK_SIZE},
-    cell::spawn_cell_bundle,
-    EntitySpawner,
+use crate::{
+    world::{
+        bundle::{cell::spawn_cell_bundle, EntitySpawner},
+        data::WorldData,
+        {chunk_from_xyz_seed, ChunkCellMarker, ChunkMarker, CELL_SIZE, CHUNK_SIZE},
+    },
+    SEED,
 };
-use crate::{world::data::WorldData, SEED};
-
 use bevy::prelude::*;
 
 pub fn spawn_chunk_bundle(

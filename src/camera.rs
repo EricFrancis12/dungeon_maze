@@ -1,5 +1,4 @@
 use crate::player::Player;
-
 use bevy::prelude::*;
 use bevy_rapier3d::{
     plugin::{PhysicsSet, RapierContext},

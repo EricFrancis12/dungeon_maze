@@ -1,15 +1,14 @@
-use super::{
-    bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle, special::OCItemContainer},
-    data::WorldData,
-    make_nei_chunks_xyz, ActiveChunk, ChunkCellMarker, ChunkMarker, CyclicTransform,
-};
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    inventory::{Item, PlayerDroppedItem},
+    inventory::{item::Item, PlayerDroppedItem},
     player::Player,
     settings::{GameSettings, RenderDistChanged},
+    world::{
+        bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle, special::OCItemContainer},
+        data::WorldData,
+        make_nei_chunks_xyz, ActiveChunk, ChunkCellMarker, ChunkMarker, CyclicTransform,
+    },
 };
-
 use bevy::prelude::*;
 use std::collections::HashSet;
 

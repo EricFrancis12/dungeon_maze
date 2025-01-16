@@ -1,13 +1,12 @@
 use crate::{
     interaction::{Interactable, PendingInteractionExecuted},
-    inventory::{Inventory, Item},
+    inventory::{item::Item, Inventory},
     player::{
         attack::{AttackHand, AttackType},
         PlayerState,
     },
     utils::{entity::get_n_parent, CyclicCounter},
 };
-
 use bevy::{animation::animate_targets, prelude::*};
 use std::time::Duration;
 

@@ -21,25 +21,26 @@ mod inventory_test;
 #[cfg(debug_assertions)]
 mod debug;
 
-use animation::AnimationPlugin;
-use camera::CameraPlugin;
-use cursor::CursorPlugin;
-use hud::HudPlugin;
-use interaction::InteractionPlugin;
-use inventory::InventoryPlugin;
-use menu::MenuPlugin;
-use player::PlayerPlugin;
-use save::GameSavePlugin;
-use settings::SettingsPlugin;
-use world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE};
-
-#[cfg(debug_assertions)]
-use debug::DebugPlugin;
-
+use crate::{
+    animation::AnimationPlugin,
+    camera::CameraPlugin,
+    cursor::CursorPlugin,
+    hud::HudPlugin,
+    interaction::InteractionPlugin,
+    inventory::InventoryPlugin,
+    menu::MenuPlugin,
+    player::PlayerPlugin,
+    save::GameSavePlugin,
+    settings::SettingsPlugin,
+    world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE},
+};
 use bevy::prelude::*;
 use bevy_embedded_assets::EmbeddedAssetPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_text_popup::TextPopupPlugin;
+
+#[cfg(debug_assertions)]
+use debug::DebugPlugin;
 
 pub const SEED: u32 = 123456;
 

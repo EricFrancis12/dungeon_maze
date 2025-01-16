@@ -1,9 +1,6 @@
-use crate::inventory::Item;
-
+use crate::{inventory::item::Item, world::bundle::EntitySpawner};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-
-use super::EntitySpawner;
 
 pub fn spawn_item_bundle(
     item: Item,

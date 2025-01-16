@@ -1,16 +1,17 @@
 use crate::{
     animation::CyclicAnimation,
     interaction::Interactable,
-    inventory::Item,
+    inventory::item::Item,
     meshes::{new_staircase_mesh, new_stairs_mesh},
-    world::{data::WorldData, ChunkCellMarker},
+    world::{
+        bundle::{item::spawn_item_bundle, EntitySpawner},
+        data::WorldData,
+        ChunkCellMarker,
+    },
 };
-
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, ComputedColliderShape, RigidBody};
 use rand::Rng;
-
-use super::{item::spawn_item_bundle, EntitySpawner};
 
 const CHAIR_COLLIDER_HX: f32 = 0.2;
 const CHAIR_COLLIDER_HY: f32 = 0.25;

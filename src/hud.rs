@@ -1,5 +1,4 @@
 use crate::player::{Health, Player, Stamina};
-
 use bevy::prelude::*;
 
 const HEALTH_BAR_MAX_WIDTH: f32 = 300.0;

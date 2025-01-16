@@ -2,7 +2,6 @@ use crate::{
     utils::rng::seed_to_rng,
     world::{Cell, CellSpecial, CellWall},
 };
-
 use bevy::utils::default;
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashSet;

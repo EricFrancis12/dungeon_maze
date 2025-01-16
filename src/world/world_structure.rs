@@ -1,5 +1,4 @@
-use super::{Cell, CellSpecial, CellWall, Chunk, GRID_SIZE};
-
+use crate::world::{Cell, CellSpecial, CellWall, Chunk, GRID_SIZE};
 use bevy::prelude::*;
 use rand::{rngs::StdRng, Rng};
 use strum::IntoEnumIterator;

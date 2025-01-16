@@ -1,5 +1,4 @@
 use crate::world::{CELL_SIZE, CHUNK_SIZE};
-
 use noise::{NoiseFn, Perlin};
 
 const PERLIN_SCALE: f64 = 0.08; // Decreasing this value increases average biome size generated

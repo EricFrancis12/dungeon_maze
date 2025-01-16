@@ -1,8 +1,7 @@
 use crate::{
-    inventory::{Item, ItemRemovedFromOCItemContainer},
+    inventory::{item::Item, ItemRemovedFromOCItemContainer},
     save::WorldDataChanged,
 };
-
 use bevy::prelude::*;
 use serde::{
     de::{self, MapAccess, Visitor},

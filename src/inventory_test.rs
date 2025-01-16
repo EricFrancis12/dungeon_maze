@@ -1,5 +1,4 @@
-use crate::inventory::{Item, ItemName};
-
+use crate::inventory::item::{Item, ItemName};
 use strum::IntoEnumIterator;
 
 #[test]

@@ -3,7 +3,7 @@ pub mod attack;
 use crate::{
     animation::{ContinuousAnimation, PlayerAnimation},
     camera::MainCamera,
-    inventory::{EquipmentSlotName, Inventory, InventoryChanged, Item},
+    inventory::{equipment::EquipmentSlotName, item::Item, Inventory, InventoryChanged},
     menu::MenuOpen,
     player::attack::{AttackHand, AttackType},
     should_not_happen,

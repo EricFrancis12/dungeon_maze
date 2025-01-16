@@ -3,14 +3,14 @@ pub mod data;
 pub mod systems;
 pub mod world_structure;
 
-use crate::utils::{
-    maze::maze_from_rng,
-    rng::{rng_from_str, rng_from_xyz_seed},
-    CyclicCounter,
+use crate::{
+    utils::{
+        maze::maze_from_rng,
+        rng::{rng_from_str, rng_from_xyz_seed},
+        CyclicCounter,
+    },
+    world::{data::remove_item_from_oc_item_containers, systems::*},
 };
-use data::remove_item_from_oc_item_containers;
-use systems::*;
-
 use bevy::prelude::*;
 use rand::{rngs::StdRng, Rng};
 use std::collections::HashMap;

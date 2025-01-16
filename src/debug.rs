@@ -4,7 +4,6 @@ use crate::{
     utils::contains_any,
     world::ChunkCellMarker,
 };
-
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;

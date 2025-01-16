@@ -1,9 +1,10 @@
 use crate::{
     meshes::{new_wall_with_door_gap_mesh, new_wall_with_window_gap_mesh},
-    world::{CellWall, Side, CELL_SIZE},
+    world::{
+        bundle::{EntitySpawner, WALL_THICKNESS},
+        CellWall, Side, CELL_SIZE,
+    },
 };
-
-use super::{EntitySpawner, WALL_THICKNESS};
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::{Collider, ComputedColliderShape};
 use std::f32::consts::PI;

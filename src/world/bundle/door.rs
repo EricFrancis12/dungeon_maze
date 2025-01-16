@@ -1,10 +1,11 @@
-use super::{EntitySpawner, WALL_THICKNESS};
 use crate::{
     interaction::Interactable,
     utils::entity::incr_betw_transforms,
-    world::{CyclicTransform, Side, CELL_SIZE},
+    world::{
+        bundle::{EntitySpawner, WALL_THICKNESS},
+        CyclicTransform, Side, CELL_SIZE,
+    },
 };
-
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::Collider;
 use std::f32::consts::PI;

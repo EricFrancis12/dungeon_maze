@@ -4,7 +4,6 @@ use crate::{
     settings::GameSettings,
     world::data::WorldData,
 };
-
 use bevy::prelude::*;
 use platform_dirs::AppDirs;
 use serde::{Deserialize, Serialize};

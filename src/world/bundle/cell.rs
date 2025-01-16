@@ -1,16 +1,14 @@
 use crate::{
     utils::noise::noise_from_xyz_seed,
-    world::{data::WorldData, Cell, CellSpecial, CellWall, ChunkCellMarker},
+    world::{
+        bundle::{
+            door::*, special::*, wall::*, window::spawn_window_bundle, EntitySpawner,
+            WALL_THICKNESS,
+        },
+        data::WorldData,
+        Cell, CellSpecial, CellWall, ChunkCellMarker, Side, CELL_SIZE, GRID_SIZE,
+    },
     SEED,
-};
-
-use super::{
-    super::{Side, CELL_SIZE, GRID_SIZE},
-    door::*,
-    special::*,
-    wall::*,
-    window::spawn_window_bundle,
-    EntitySpawner, WALL_THICKNESS,
 };
 use bevy::prelude::*;
 

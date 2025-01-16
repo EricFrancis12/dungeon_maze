@@ -1,12 +1,10 @@
-use bevy::prelude::*;
-use bevy_rapier3d::{plugin::RapierContext, prelude::Collider};
-
 use crate::{
-    inventory::{EquipmentSlotName, Item},
+    inventory::{equipment::EquipmentSlotName, item::Item},
+    player::{DmgTarget, Player, PlayerState, TakeDamage},
     utils::IncrCounter,
 };
-
-use super::{DmgTarget, Player, PlayerState, TakeDamage};
+use bevy::prelude::*;
+use bevy_rapier3d::{plugin::RapierContext, prelude::Collider};
 
 #[derive(Component)]
 pub struct EntitiesHit(pub Vec<Entity>);
