@@ -1,18 +1,22 @@
 import { useState } from "react";
-import { WorldStructureSchema } from "../lib/schemas";
-import { acceptFileUpload, downloadAsJsonFile, fillToLength, safeSchemaParseJSON } from "../lib/utils";
-import { WorldStructure, newCell, newWorldStructure } from "../lib/types";
+import { Button } from "../components/ui/Button";
 import WorldStructureEditor from "../components/WorldStructureEditor";
+import { WorldStructureSchema } from "../lib/schemas";
+import { acceptFileUpload, downloadAsJsonFile, fillToLength, safeSchemaParseJSON, stripSuffixIfExists } from "../lib/utils";
+import { WorldStructure, newCell, newWorldStructure } from "../lib/types";
 
 export default function WorldStructureEditorPage() {
     const [worldStructure, setWorldStructure] = useState<WorldStructure>(newWorldStructure());
-    const [fileName, setFileName] = useState("");
+    const [name, setName] = useState("");
 
     async function handleLoadFromFile() {
         const file = await acceptFileUpload();
-        if (!file) return;
+        if (!file) {
+            console.error("error uploading file");
+            return;
+        };
 
-        setFileName(file.name);
+        setName(stripSuffixIfExists(file.name, ".json"));
         const s = await file.text();
 
         const ws = await safeSchemaParseJSON(s, WorldStructureSchema);
@@ -37,17 +41,18 @@ export default function WorldStructureEditorPage() {
     }
 
     function handleSave() {
-        downloadAsJsonFile(worldStructure, fileName);
+        downloadAsJsonFile(worldStructure, `${name}.json`);
     }
 
     return (
         <main className="relative flex flex-col h-screen w-full">
             <div className="flex items-center gap-2 w-full p-2">
-                <button onClick={handleLoadFromFile}>Load From File</button>
-                <button onClick={handleSave}>Save</button>
+                <Button onClick={handleLoadFromFile}>Load From File</Button>
+                <Button onClick={handleSave}>Save</Button>
             </div>
             <div className="flex-1 h-screen w-full p-4">
                 <WorldStructureEditor
+                    name={name}
                     worldStructure={worldStructure}
                     setWorldStructure={setWorldStructure}
                 />

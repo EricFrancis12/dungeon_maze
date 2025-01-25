@@ -1,12 +1,36 @@
-import { Fragment, useRef, useState } from "react";
+import { CSSProperties, Fragment, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import useScrollScaler from "../../hooks/useScrollScaler";
 import useShiftDragger from "../../hooks/useShiftDragger";
+import { Button } from "../ui/Button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/Select"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "../../components/ui/ContextMenu";
 import ChunkSection from "./ChunkSection";
+import DummyChunkSection from "./DummyChunkSection";
+import { arrFromIncr, cn } from "../../lib/utils";
 import { Chunk, WorldStructure, newChunk } from "../../lib/types";
 
-const MIN_RADIUS = 2;
+type DummyChunk = {
+    x: number;
+    z: number;
+};
 
-export default function WorldStructureEditor({ worldStructure, setWorldStructure }: {
+function calcXZRadius(ws: WorldStructure): number {
+    return ws.chunks.reduce((acc: number, curr) => {
+        let max = acc;
+
+        const absX = Math.abs(curr.x);
+        if (absX > acc) max = absX;
+
+        const absZ = Math.abs(curr.z);
+        if (absZ > acc) max = absZ;
+
+        return max;
+    }, 0);
+}
+
+export default function WorldStructureEditor({ name, worldStructure, setWorldStructure }: {
+    name: string;
     worldStructure: WorldStructure;
     setWorldStructure: (ws: WorldStructure) => void;
 }) {
@@ -18,42 +42,85 @@ export default function WorldStructureEditor({ worldStructure, setWorldStructure
 
     const [chunkY, setChunkY] = useState(0);
 
-    function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-        const newChunkY = parseInt(e.target.value);
+    function handleChange(value: string) {
+        const newChunkY = parseInt(value);
         if (!isNaN(newChunkY)) {
             setChunkY(newChunkY);
         }
     }
 
-    let radius = worldStructure.chunks.reduce((acc: number, curr) => {
-        let max = acc;
-        if (Math.abs(curr.x) > acc) max = curr.x;
-        if (Math.abs(curr.y) > acc) max = curr.y;
-        if (Math.abs(curr.z) > acc) max = curr.z;
-        return max;
-    }, 0);
+    const xzRadius = calcXZRadius(worldStructure);
 
-    if (radius < MIN_RADIUS) radius = MIN_RADIUS;
-
-    const chunks: (Chunk | { x: number; z: number; })[][] = [];
-    for (let z = -radius; z <= radius; z++) {
-        const row: (Chunk | { x: number; z: number; })[] = [];
-        for (let x = -radius; x <= radius; x++) {
+    const chunks: (Chunk | DummyChunk)[][] = [];
+    for (let z = -xzRadius; z <= xzRadius; z++) {
+        const row: (Chunk | DummyChunk)[] = [];
+        for (let x = -xzRadius; x <= xzRadius; x++) {
             const chunk = worldStructure.chunks.find((chunk => chunk.x === x && chunk.y === chunkY && chunk.z === z));
             row.push(chunk ?? { x, z });
         }
         chunks.push(row);
     }
 
+    let leastY = 0;
+    let greatestY = 0;
+    for (const chunk of worldStructure.chunks) {
+        if (chunk.y < leastY) {
+            leastY = chunk.y;
+        } else if (chunk.y > greatestY) {
+            greatestY = chunk.y;
+        }
+    }
+
+    const yChoices = arrFromIncr(leastY, greatestY, 1);
+
     return (
         <div className="flex flex-col h-full w-full">
-            <div className="flex items-center gap-2 w-full p-2">
-                <button onClick={() => setPosition({ top: 0, left: 0 })}>{"To (0,0)"}</button>
-                <select value={chunkY} onChange={handleChange}>
-                    {[-2, -1, 0, 1, 2].map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                    ))}
-                </select>
+            <div className="flex flex-col gap-2 w-full p-2">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="whitespace-nowrap">Chunk Y:</span>
+                        <Select
+                            value={`${chunkY}`}
+                            onValueChange={handleChange}
+                        >
+                            <SelectTrigger className="max-w-[100px]">
+                                <SelectValue>
+                                    {chunkY}
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white">
+                                {yChoices.map((y) => (
+                                    <SelectItem key={y} value={`${y}`}>{y}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Button onClick={() => setPosition({ top: 0, left: 0 })}>Reset View</Button>
+                </div>
+                <div className="flex items-center gap-4">
+                    <Button
+                        onClick={() => setWorldStructure({
+                            ...worldStructure,
+                            chunks: [
+                                newChunk(0, leastY - 1, 0),
+                                ...worldStructure.chunks,
+                            ],
+                        })}
+                    >
+                        {`Extend -Y to ${leastY - 1} (create a new chunk at (0, ${leastY - 1}, 0))`}
+                    </Button>
+                    <Button
+                        onClick={() => setWorldStructure({
+                            ...worldStructure,
+                            chunks: [
+                                ...worldStructure.chunks,
+                                newChunk(0, greatestY + 1, 0),
+                            ],
+                        })}
+                    >
+                        {`Extend +Y to ${greatestY + 1} (create a new chunk at (0, ${greatestY + 1}, 0))`}
+                    </Button>
+                </div>
             </div>
             <div
                 ref={boundsRef}
@@ -62,13 +129,16 @@ export default function WorldStructureEditor({ worldStructure, setWorldStructure
             >
                 <div
                     ref={ref}
-                    className="absolute grid grid-cols-5 h-[2000px] w-[2000px] bg-white"
+                    className="absolute grid bg-white"
                     style={{
+                        gridTemplateColumns: `repeat(${xzRadius * 2 + 1}, minmax(0, 1fr))`,
                         top: position.top,
                         left: position.left,
+                        height: `${400 * (xzRadius + 1)}px`,
+                        width: `${400 * (xzRadius + 1)}px`,
                     }}
                 >
-                    {chunks.map((row) => row.map((chunk) => (
+                    {chunks.map((row, rowIndex) => row.map((chunk, chunkIndex) => (
                         <Fragment key={`${chunk.x} ${chunk.z}`}>
                             <div className="relative flex justify-center items-center border border-gray-500">
                                 {"cells" in chunk
@@ -82,8 +152,28 @@ export default function WorldStructureEditor({ worldStructure, setWorldStructure
                                                     : ch
                                             ),
                                         })}
+                                        onDeleteIntent={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: worldStructure.chunks.filter(
+                                                (ch) => (ch.x !== chunk.x || ch.y !== chunk.y || ch.z !== chunk.z)
+                                            ),
+                                        })}
+                                        onOriginChunkChangeIntent={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: worldStructure.chunks.map(
+                                                (ch) => ({
+                                                    ...ch,
+                                                    world_structure: (ch.x === chunk.x && ch.y === chunk.y && ch.z === chunk.z)
+                                                        ? name
+                                                        : "None",
+                                                })
+                                            ),
+                                        })}
                                     />
-                                    : <button
+                                    : <DummyChunkSection
+                                        x={chunk.x}
+                                        y={chunkY}
+                                        z={chunk.z}
                                         onClick={() => setWorldStructure({
                                             ...worldStructure,
                                             chunks: [
@@ -91,40 +181,148 @@ export default function WorldStructureEditor({ worldStructure, setWorldStructure
                                                 newChunk(chunk.x, chunkY, chunk.z),
                                             ],
                                         })}
-                                    >
-                                        {`add chunk: (${chunk.x}, ${chunkY}, ${chunk.z})`}
-                                    </button>
+                                    />
                                 }
-                                {[[radius, "top"], [-radius, "bottom"]].map(([r, d], index) => chunk.z === r
-                                    ? (
-                                        <div
-                                            key={index}
-                                            className="absolute flex justify-center items-center left-0 h-[16%] w-full bg-purple-200"
-                                            style={{ [d]: "100%" }}
-                                        >
-                                            {`X: ${chunk.x}`}
-                                        </div>
-                                    )
+                                {([[xzRadius, "top"], [-xzRadius, "bottom"]] as const).map(([r, d], index) => chunk.z === r
+                                    ? <ColRowHeading
+                                        key={index}
+                                        text={`X: ${chunk.x}`}
+                                        contextText={`Clear column x = ${chunk.x}`}
+                                        className="left-0 h-[16%] w-full"
+                                        style={{ [d]: "100%" }}
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: worldStructure.chunks.filter(
+                                                (ch) => ch.x !== chunk.x
+                                            ),
+                                        })}
+                                    />
                                     : null
                                 )}
-                                {[[radius, "left"], [-radius, "right"]].map(([r, d], index) => chunk.x === r
-                                    ? (
-                                        <div
-                                            key={index}
-                                            className="absolute flex justify-center items-center bottom-0 h-full w-[16%] bg-purple-200"
-                                            style={{ [d]: "100%" }}
-                                        >
-                                            {`Z: ${chunk.z}`}
-                                        </div>
-                                    )
+                                {([[xzRadius, "left"], [-xzRadius, "right"]] as const).map(([r, d], index) => chunk.x === r
+                                    ? <ColRowHeading
+                                        key={index}
+                                        text={`Z: ${chunk.z}`}
+                                        contextText={`Clear row z = ${chunk.z}`}
+                                        className="bottom-0 h-full w-[16%]"
+                                        style={{ [d]: "100%" }}
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: worldStructure.chunks.filter(
+                                                (ch) => ch.z !== chunk.z
+                                            ),
+                                        })}
+                                    />
                                     : null
                                 )}
+
+                                {/* Top row plus buttons */}
+                                {rowIndex === 0 &&
+                                    <PlusButton
+                                        className="top-[-50%] left-[40%]"
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: [
+                                                newChunk(chunk.x, chunkY, chunk.z - 1),
+                                                ...worldStructure.chunks,
+                                            ],
+                                        })}
+                                    />
+                                }
+
+                                {/* Bottom row plus buttons */}
+                                {(rowIndex === chunks.length - 1) &&
+                                    <PlusButton
+                                        className="bottom-[-50%] left-[40%]"
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: [
+                                                ...worldStructure.chunks,
+                                                newChunk(chunk.x, chunkY, chunk.z + 1),
+                                            ],
+                                        })}
+                                    />
+                                }
+
+                                {/* Left column plus buttons */}
+                                {chunkIndex === 0 &&
+                                    <PlusButton
+                                        className="top-[40%] left-[-50%]"
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: [
+                                                newChunk(chunk.x - 1, chunkY, chunk.z),
+                                                ...worldStructure.chunks,
+                                            ],
+                                        })}
+                                    />
+                                }
+
+                                {/* Right column plus buttons */}
+                                {(chunkIndex === row.length - 1) &&
+                                    <PlusButton
+                                        className="top-[40%] right-[-50%]"
+                                        onClick={() => setWorldStructure({
+                                            ...worldStructure,
+                                            chunks: [
+                                                ...worldStructure.chunks,
+                                                newChunk(chunk.x + 1, chunkY, chunk.z),
+                                            ],
+                                        })}
+                                    />
+                                }
                             </div>
                         </Fragment>
                     )))}
                 </div>
                 {dragging && <div className="h-full w-full bg-white opacity-30 pointer-events-none" />}
             </div>
+        </div >
+    );
+}
+
+function ColRowHeading({ text, contextText, onClick, className, style }: {
+    text: string;
+    contextText: string;
+    onClick: () => void;
+    className?: string;
+    style?: CSSProperties;
+}) {
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger>
+                <div
+                    className={cn(
+                        "absolute flex justify-center items-center bg-purple-200",
+                        className,
+                    )}
+                    style={style}
+                >
+                    {text}
+                </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="bg-white">
+                <ContextMenuItem onClick={onClick}>
+                    {contextText}
+                </ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
+    );
+}
+
+function PlusButton({ onClick, className }: {
+    onClick: () => void;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                "absolute flex justify-center items-center h-[20%] w-[20%] bg-slate-200 rounded-full cursor-pointer hover:opacity-70",
+                className,
+            )}
+            onClick={onClick}
+        >
+            <Plus />
         </div>
     );
 }

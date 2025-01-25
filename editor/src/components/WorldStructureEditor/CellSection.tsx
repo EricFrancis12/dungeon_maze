@@ -1,13 +1,32 @@
 import { Check } from "lucide-react";
 import { ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@radix-ui/react-context-menu";
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuTrigger,
-} from "../../components/ui/ContextMenu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "../../components/ui/ContextMenu";
 import { cn } from "../../lib/utils";
 import { Cell, CellSpecial, CellWall } from "../../lib/types";
+
+const RED_FLOOR_COLOR = "rgb(140,0,0)";
+const BLUE_CEILING_COLOR = "rgb(0,51,102)";
+
+// // Floor
+// if cell.floor == CellWall::Solid {
+//     spawn_solid_wall_bundle(
+//         Side::Down,
+//         parent,
+//         &mesh,
+//         &materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
+//     );
+// }
+
+// // Ceiling
+// if cell.ceiling == CellWall::Solid {
+//     spawn_solid_wall_bundle(
+//         Side::Up,
+//         parent,
+//         &mesh,
+//         &materials.add(Color::linear_rgba(0.0, 0.2, 0.4, 1.0)),
+//     );
+// }
+
 
 export default function CellSection({ cell, onChange }: {
     cell: Cell;
@@ -18,16 +37,16 @@ export default function CellSection({ cell, onChange }: {
         if (cell.floor === CellWall.Solid) {
             bg = `repeating-linear-gradient(
                 45deg,
-                blue,
-                blue 10px,
-                red 10px,
-                red 20px
+                ${BLUE_CEILING_COLOR},
+                ${BLUE_CEILING_COLOR} 16px,
+                ${RED_FLOOR_COLOR} 16px,
+                ${RED_FLOOR_COLOR} 32px
             )`;
         } else {
-            bg = "blue";
+            bg = BLUE_CEILING_COLOR;
         }
     } else if (cell.floor === CellWall.Solid) {
-        bg = "red";
+        bg = RED_FLOOR_COLOR;
     }
 
     return (

@@ -6,6 +6,27 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+export function stripSuffixIfExists(s: string, suffix: string): string {
+    if (s.endsWith(suffix)) {
+        return s.slice(0, s.length - suffix.length);
+    }
+    return s;
+}
+
+export function arrFromIncr(start: number, end: number, incr: number): number[] {
+    const arr = [start];
+    if (start === end) return arr;
+
+    let next = start + incr;
+    while (next < end) {
+        arr.push(next);
+        next += incr;
+    }
+
+    arr.push(end);
+    return arr;
+}
+
 export function fillToLength<T>(arr: T[], t: () => T, length: number) {
     if (arr.length >= length) {
         return arr;
