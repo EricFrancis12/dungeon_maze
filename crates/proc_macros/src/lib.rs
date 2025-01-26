@@ -5,8 +5,14 @@ use dungeon_maze_common::world::{
     Chunk,
 };
 use proc_macro::TokenStream;
-use std::{collections::HashMap, fs::read_to_string, path::Path};
+use std::{
+    collections::HashMap,
+    fs::{exists, read_to_string},
+    path::Path,
+};
 use strum::IntoEnumIterator;
+
+const WORLD_STRUCTURES_DIR_PATH: &str = "assets/world_structures";
 
 fn make_chunk_str(chunk: &Chunk) -> String {
     format!(
@@ -79,11 +85,29 @@ fn make_chunk_str(chunk: &Chunk) -> String {
 
 #[proc_macro]
 pub fn proc_parse_world_structures(_: TokenStream) -> TokenStream {
-    let mut world_structures: HashMap<WorldStructureName, WorldStructure> = HashMap::new();
+    assert_eq!(exists(WORLD_STRUCTURES_DIR_PATH).unwrap(), true);
+
+    let mut world_structure_strs: HashMap<WorldStructureName, String> = HashMap::new();
     let mut chunk_strs: HashMap<WorldStructureName, String> = HashMap::new();
 
     for wsn in WorldStructureName::iter() {
-        let path = format!("assets/world_structures/{}.json", wsn);
+        let path = format!("{}/{}.json", WORLD_STRUCTURES_DIR_PATH, wsn);
+
+        if !exists(&path).unwrap() {
+            let do_alt_insert = |hm: &mut HashMap<WorldStructureName, String>| {
+                hm.insert(
+                    wsn.clone(),
+                    String::from(format!(
+                        r#"panic!("WorldStructureName::{} was not defined at `{}` during compilation")"#,
+                        wsn, path
+                    )),
+                );
+            };
+
+            do_alt_insert(&mut world_structure_strs);
+            do_alt_insert(&mut chunk_strs);
+            continue;
+        }
 
         let ws = serde_json::from_str::<WorldStructure>(&read_to_string(&path).unwrap()).unwrap();
 
@@ -97,38 +121,28 @@ pub fn proc_parse_world_structures(_: TokenStream) -> TokenStream {
             ch.world_structure.to_string() == file_name
         });
 
-        let chunk_str = make_chunk_str(&origin_chunk);
+        let s = ws
+            .chunks
+            .iter()
+            .map(make_chunk_str)
+            .collect::<Vec<String>>()
+            .join(",");
 
-        world_structures.insert(wsn.clone(), ws.clone());
-        chunk_strs.insert(wsn, chunk_str);
+        world_structure_strs.insert(wsn.clone(), format!("vec![{}]", s));
+        chunk_strs.insert(wsn, make_chunk_str(&origin_chunk));
     }
 
-    let gen_chunks_match = world_structures
-        .iter()
-        .map(|(n, ws)| {
-            format!(
-                "dungeon_maze_common::world::world_structure::WorldStructureName::{} => vec![{}]",
-                n,
-                ws.chunks
-                    .iter()
-                    .map(make_chunk_str)
-                    .collect::<Vec<String>>()
-                    .join(","),
-            )
-        })
-        .collect::<Vec<String>>()
-        .join(",");
-
-    let gen_origin_chunk_match = chunk_strs
-        .iter()
-        .map(|(n, s)| {
-            format!(
-                "dungeon_maze_common::world::world_structure::WorldStructureName::{} => {}",
-                n, s
-            )
-        })
-        .collect::<Vec<String>>()
-        .join(",");
+    let make_match_arms = |hm: &HashMap<WorldStructureName, String>| -> String {
+        hm.iter()
+            .map(|(n, s)| {
+                format!(
+                    "dungeon_maze_common::world::world_structure::WorldStructureName::{} => {}",
+                    n, s
+                )
+            })
+            .collect::<Vec<String>>()
+            .join(",")
+    };
 
     format!(
         r#"
@@ -164,7 +178,8 @@ pub fn proc_parse_world_structures(_: TokenStream) -> TokenStream {
                 chunk
             }}
         "#,
-        gen_chunks_match, gen_origin_chunk_match,
+        make_match_arms(&world_structure_strs),
+        make_match_arms(&chunk_strs),
     )
     .parse()
     .unwrap()
