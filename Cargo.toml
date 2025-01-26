@@ -1,22 +1,8 @@
-[package]
-name = "dungeon-maze"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
 
-[dependencies]
-bevy = { version = "0.14.2", features=["jpeg"] }
-bevy-inspector-egui = "0.27.0"
-bevy_embedded_assets = "0.11"
-bevy_mesh_obj = "0.1.2"
-bevy_rapier3d = "0.27.0"
-bevy_text_popup = "0.4.0"
-bevy_third_person_camera = "0.1.14"
-chrono = "0.4.38"
-noise = "0.9.0"
-platform-dirs = "0.3.0"
-rand = "0.8.5"
-serde = "1.0.214"
-serde_json = "1.0.132"
-strum = "0.26.3"
-strum_macros = "0.26.4"
-thiserror = "2.0.0"
+members = [
+    "crates/common",
+    "crates/game",
+    "crates/proc_macros",
+]

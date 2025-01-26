@@ -1,0 +1,10 @@
+[package]
+name = "dungeon_maze_proc_macros"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dungeon_maze_common = { path = "../common" }
+
+[lib]
+proc-macro = true
