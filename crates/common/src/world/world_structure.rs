@@ -2,14 +2,17 @@ use crate::world::{Cell, CellSpecial, CellWall, Chunk};
 use bevy::prelude::*;
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
-use serde_json;
-use std::path;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
 const GRID_SIZE: usize = 4; // TODO: remove
 
-#[derive(Clone, Debug, Default, Deserialize, Display, EnumIter, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
+pub struct WorldStructure {
+    pub chunks: Vec<Chunk>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Display, EnumIter, Eq, Hash, PartialEq, Serialize)]
 pub enum WorldStructureName {
     #[default]
     None,
@@ -68,20 +71,15 @@ impl WorldStructureName {
         Self::default()
     }
 
-    pub fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk {
+    fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk {
         match self {
-            Self::None => Chunk {
+            Self::None | Self::EmptySpace1 => Chunk {
                 x,
                 y,
                 z,
                 cells: vec![vec![Cell::default(); GRID_SIZE]; GRID_SIZE],
                 world_structure: self.clone(),
             },
-            Self::EmptySpace1 => {
-                crate::parse_ws_origin_chunk!(
-                    "../../../../assets/world_structures/EmptySpace1.json"
-                )
-            }
             Self::FilledWithChairs1 => Chunk {
                 x,
                 y,
@@ -225,16 +223,10 @@ impl WorldStructureName {
         }
     }
 
-    pub fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
+    fn gen_chunks(&self, _x: i64, _y: i64, _z: i64) -> Vec<Chunk> {
         match self {
             Self::None => Vec::new(),
-            Self::EmptySpace1 => {
-                crate::parse_world_structure!(
-                    "../../../../assets/world_structures/EmptySpace1.json"
-                )
-                .chunks
-            }
-            Self::FilledWithChairs1 | Self::House1 | Self::StairsAltar1 => {
+            Self::EmptySpace1 | Self::FilledWithChairs1 | Self::House1 | Self::StairsAltar1 => {
                 vec![self.gen_origin_chunk(_x, _y, _z)]
             }
             Self::StaircaseTower2 => {
@@ -294,30 +286,4 @@ impl WorldStructureName {
             }
         }
     }
-}
-
-#[derive(Deserialize, Serialize)]
-struct WorldStructure {
-    chunks: Vec<Chunk>,
-}
-
-#[macro_export]
-macro_rules! parse_world_structure {
-    ($file_path:expr) => {
-        serde_json::from_str::<WorldStructure>(include_str!($file_path)).unwrap()
-    };
-}
-
-#[macro_export]
-macro_rules! parse_ws_origin_chunk {
-    ($file_path:expr) => {{
-        let file_name = path::Path::new($file_path)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap()
-            .to_string();
-        $crate::utils::must_find_one($crate::parse_world_structure!($file_path).chunks, |ch| {
-            ch.world_structure.to_string() == file_name
-        })
-    }};
 }

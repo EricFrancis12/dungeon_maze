@@ -108,6 +108,8 @@ where
     P: FnMut(&I::Item) -> bool,
 {
     let items: Vec<I::Item> = iterable.into_iter().filter(predicate).collect();
-    assert_eq!(items.len(), 1);
+    if items.len() != 1 {
+        panic!("expected exactly (1) item, but got ({})", items.len());
+    }
     items.into_iter().next().unwrap()
 }

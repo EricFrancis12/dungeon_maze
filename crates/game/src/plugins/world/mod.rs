@@ -1,6 +1,9 @@
 pub mod bundle;
 
-use crate::plugins::world::bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle};
+use crate::{
+    gen_chunks, gen_origin_chunk,
+    plugins::world::bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle},
+};
 use bevy::prelude::*;
 use dungeon_maze_common::{
     interaction::{Interactable, PendingInteractionExecuted},
@@ -229,7 +232,8 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
     let mut rng = rng_from_xyz_seed(seed, x, y, z);
 
     if chunk_has_world_structure(seed, x, y, z) {
-        return WorldStructureName::choose(&mut rng).gen_origin_chunk(x, y, z);
+        // return WorldStructureName::choose(&mut rng).gen_origin_chunk(x, y, z);
+        return gen_origin_chunk(&WorldStructureName::choose(&mut rng), x, y, z);
     }
 
     let mut cells = maze_from_rng(&mut rng, GRID_SIZE, GRID_SIZE);
@@ -318,7 +322,8 @@ pub fn chunk_from_xyz_seed(seed: u32, x: i64, y: i64, z: i64) -> Chunk {
 
                     if chunk_has_world_structure(seed, _x, _y, _z) {
                         let ws_chunk = chunk_from_xyz_seed(seed, _x, _y, _z);
-                        let ws_chunks = ws_chunk.world_structure.gen_chunks(_x, _y, _z);
+                        // let ws_chunks = ws_chunk.world_structure.gen_chunks(_x, _y, _z);
+                        let ws_chunks = gen_chunks(&ws_chunk.world_structure, _x, _y, _z);
 
                         if let Some(ch) =
                             ws_chunks.iter().find(|c| c.x == x && c.y == y && c.z == z)

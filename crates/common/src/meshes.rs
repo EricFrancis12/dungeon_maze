@@ -1,6 +1,9 @@
 use bevy::prelude::Mesh;
 use bevy_mesh_obj::mesh_from_obj;
 
+// TODO: refactor bevy_mesh_obj crate to use proc macros
+// to gen meshes at compile time
+
 pub fn new_staircase_mesh() -> Mesh {
     mesh_from_obj!("../../../assets/meshes/staircase.obj")
 }

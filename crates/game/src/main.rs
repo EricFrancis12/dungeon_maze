@@ -21,6 +21,8 @@ use bevy_text_popup::TextPopupPlugin;
 #[cfg(debug_assertions)]
 use crate::plugins::debug::DebugPlugin;
 
+dungeon_maze_proc_macros::proc_parse_world_structures!();
+
 pub const SEED: u32 = 123456;
 
 fn main() {

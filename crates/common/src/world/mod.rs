@@ -52,7 +52,7 @@ impl Cell {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Display, Eq, PartialEq, Serialize)]
 pub enum CellWall {
     #[default]
     None,
@@ -61,7 +61,7 @@ pub enum CellWall {
     SolidWithWindowGap,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, EnumIter, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Display, EnumIter, PartialEq, Serialize)]
 pub enum CellSpecial {
     #[default]
     None,
