@@ -76,6 +76,10 @@ impl ItemName {
         }
     }
 
+    pub fn _is_stackable(&self) -> bool {
+        self.max_amt() > 1
+    }
+
     pub fn is_equipable_at(&self, _: &EquipmentSlotName) -> bool {
         match self.item_type() {
             ItemType::Weapon => true,

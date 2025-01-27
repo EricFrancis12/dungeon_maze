@@ -1,6 +1,9 @@
 pub mod bundle;
 pub mod chunk_generator;
 
+#[cfg(test)]
+pub mod chunk_generator_test;
+
 use crate::plugins::world::{
     bundle::{chunk::spawn_chunk_bundle_from_xyz_seed, item::spawn_item_bundle},
     chunk_generator::ChunkGenerator,
