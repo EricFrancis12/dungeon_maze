@@ -195,8 +195,9 @@ fn spawn_starting_equiped_items(
     inventory: Res<Inventory>,
 ) {
     for name in added_name_query.iter() {
-        for slot_name in EquipmentSlotName::iter() {
-            if slot_name.matches_target(name) {
+        EquipmentSlotName::iter()
+            .filter(|sn| sn.matches_target(name))
+            .for_each(|_| {
                 update_equiped_items(
                     &mut commands,
                     &name_query,
@@ -204,8 +205,7 @@ fn spawn_starting_equiped_items(
                     &asset_server,
                     &inventory,
                 );
-            }
-        }
+            });
     }
 }
 

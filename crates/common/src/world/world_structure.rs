@@ -2,15 +2,27 @@ use crate::world::Chunk;
 use bevy::prelude::{Asset, TypePath};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
+use strum::{IntoEnumIterator, VariantArray};
+use strum_macros::{Display, EnumIter, VariantArray};
 
 #[derive(Asset, Clone, Deserialize, Serialize, TypePath)]
 pub struct WorldStructure {
     pub chunks: Vec<Chunk>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Display, EnumIter, Eq, Hash, PartialEq, Serialize)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Deserialize,
+    Display,
+    EnumIter,
+    Eq,
+    Hash,
+    PartialEq,
+    Serialize,
+    VariantArray,
+)]
 pub enum WorldStructureName {
     #[default]
     None,
@@ -50,19 +62,16 @@ impl WorldStructureName {
     }
 
     pub fn choose(rng: &mut StdRng) -> Self {
-        let all: Vec<Self> = Self::iter().collect();
-        if all.is_empty() {
-            return Self::default();
-        }
+        let variants = Self::VARIANTS;
 
-        let weights: Vec<f32> = all.iter().map(|ws| ws.weight()).collect();
+        let weights: Vec<f32> = variants.iter().map(|ws| ws.weight()).collect();
         let rand_weight = rng.gen_range(0.0..Self::total_weight());
 
         let mut cumulative_weight = 0.0;
         for (index, &weight) in weights.iter().enumerate() {
             cumulative_weight += weight;
             if rand_weight < cumulative_weight {
-                return all[index].clone();
+                return variants[index].clone();
             }
         }
 

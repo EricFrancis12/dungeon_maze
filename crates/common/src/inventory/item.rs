@@ -11,8 +11,8 @@ use crate::{
 use bevy::{asset::AssetPath, prelude::*};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
+use strum::{EnumCount, VariantArray};
+use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 
 const ITEM_INTERACTABLE_RANGE: f32 = 1.8;
 
@@ -24,7 +24,18 @@ pub enum ItemType {
 }
 
 #[derive(
-    Clone, Component, Copy, Debug, Deserialize, Display, EnumIter, Eq, PartialEq, Serialize,
+    Clone,
+    Component,
+    Copy,
+    Debug,
+    Deserialize,
+    Display,
+    EnumCount,
+    EnumIter,
+    Eq,
+    PartialEq,
+    Serialize,
+    VariantArray,
 )]
 pub enum ItemName {
     // Raw materials
@@ -49,9 +60,8 @@ pub enum ItemName {
 
 impl ItemName {
     pub fn choose(rng: &mut StdRng) -> Self {
-        let item_names = Self::iter().collect::<Vec<ItemName>>();
-        let i = rng.gen_range(0..item_names.len());
-        item_names[i].to_owned()
+        let i = rng.gen_range(0..Self::COUNT);
+        Self::VARIANTS[i].to_owned()
     }
 
     pub fn item_type(&self) -> ItemType {
