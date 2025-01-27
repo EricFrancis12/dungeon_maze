@@ -5,6 +5,9 @@ pub mod maze;
 pub mod noise;
 pub mod rng;
 
+#[cfg(test)]
+pub mod utils_test;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct IncrCounter {
     value: i32,
@@ -103,14 +106,23 @@ pub fn _min_max_or_betw<T: PartialOrd>(min: T, max: T, betw: T) -> T {
     betw
 }
 
-pub fn must_find_one<I, P>(iterable: I, predicate: P) -> I::Item
+pub fn find_exactly_one<I, P>(iterable: I, predicate: P) -> Option<I::Item>
 where
     I: IntoIterator,
     P: FnMut(&I::Item) -> bool,
 {
-    let items: Vec<I::Item> = iterable.into_iter().filter(predicate).collect();
-    if items.len() != 1 {
-        panic!("expected exactly (1) item, but got ({})", items.len());
+    let mut items = iterable.into_iter().filter(predicate);
+    let item = items.next();
+    if items.next().is_none() {
+        return item;
     }
-    items.into_iter().next().unwrap()
+    None
+}
+
+pub fn must_find_exactly_one<I, P>(iterable: I, predicate: P) -> I::Item
+where
+    I: IntoIterator,
+    P: FnMut(&I::Item) -> bool,
+{
+    find_exactly_one(iterable, predicate).unwrap()
 }

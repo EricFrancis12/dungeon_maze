@@ -117,7 +117,7 @@ pub fn proc_parse_world_structures(_: TokenStream) -> TokenStream {
             .unwrap()
             .to_string();
 
-        let origin_chunk = dungeon_maze_common::utils::must_find_one(&ws.chunks, |ch| {
+        let origin_chunk = dungeon_maze_common::utils::must_find_exactly_one(&ws.chunks, |ch| {
             ch.world_structure.to_string() == file_name
         });
 
