@@ -1,5 +1,6 @@
 pub mod debug;
 pub mod entity;
+pub mod io;
 pub mod maze;
 pub mod noise;
 pub mod rng;

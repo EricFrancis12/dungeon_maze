@@ -1,10 +1,11 @@
 use crate::world::Chunk;
+use bevy::prelude::{Asset, TypePath};
 use rand::{rngs::StdRng, Rng};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Asset, Clone, Deserialize, Serialize, TypePath)]
 pub struct WorldStructure {
     pub chunks: Vec<Chunk>,
 }

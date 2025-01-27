@@ -5,4 +5,5 @@ members = [
     "crates/common",
     "crates/game",
     "crates/proc_macros",
+    "crates/sandbox",
 ]

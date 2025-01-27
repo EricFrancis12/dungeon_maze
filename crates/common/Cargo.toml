@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.14.2", features=["jpeg"] }
+bevy = { version = "0.14.2", features = [ "jpeg" ] }
 bevy_mesh_obj = "0.1.2"
 noise = "0.9.0"
 rand = "0.8.5"

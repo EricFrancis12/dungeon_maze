@@ -2,7 +2,7 @@ pub mod bundle;
 pub mod chunk_generator;
 
 use crate::plugins::world::{
-    bundle::{chunk::spawn_chunk_bundle, item::spawn_item_bundle},
+    bundle::{chunk::spawn_chunk_bundle_from_xyz_seed, item::spawn_item_bundle},
     chunk_generator::ChunkGenerator,
 };
 use bevy::prelude::*;
@@ -70,7 +70,7 @@ pub fn spawn_initial_chunks(
         render_dist.2,
     );
     for xyz in chunks {
-        spawn_chunk_bundle(
+        spawn_chunk_bundle_from_xyz_seed(
             xyz,
             &mut commands,
             &asset_server,
@@ -128,7 +128,7 @@ pub fn update_spawned_chunks(
         // Spawn new chunks that do not currently exist
         for (x, y, z) in new_chunks {
             if !existing_chunks.contains(&(x, y, z)) {
-                spawn_chunk_bundle(
+                spawn_chunk_bundle_from_xyz_seed(
                     (x, y, z),
                     &mut commands,
                     &asset_server,

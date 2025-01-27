@@ -1,6 +1,8 @@
-mod plugins;
-
-use crate::plugins::{
+use bevy::prelude::*;
+use bevy_embedded_assets::EmbeddedAssetPlugin;
+use bevy_rapier3d::prelude::*;
+use bevy_text_popup::TextPopupPlugin;
+use dungeon_maze_game::plugins::{
     animation::AnimationPlugin,
     camera::CameraPlugin,
     cursor::CursorPlugin,
@@ -13,17 +15,9 @@ use crate::plugins::{
     settings::SettingsPlugin,
     world::{WorldPlugin, CELL_SIZE, CHUNK_SIZE},
 };
-use bevy::prelude::*;
-use bevy_embedded_assets::EmbeddedAssetPlugin;
-use bevy_rapier3d::prelude::*;
-use bevy_text_popup::TextPopupPlugin;
 
 #[cfg(debug_assertions)]
-use crate::plugins::debug::DebugPlugin;
-
-dungeon_maze_proc_macros::proc_parse_world_structures!();
-
-pub const SEED: u32 = 123456;
+use dungeon_maze_game::plugins::debug::DebugPlugin;
 
 fn main() {
     assert_eq!(

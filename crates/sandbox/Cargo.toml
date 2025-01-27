@@ -1,0 +1,14 @@
+[package]
+name = "sandbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14.2", features = [ "jpeg", "file_watcher" ] }
+bevy-inspector-egui = "0.27.0"
+bevy_common_assets = { version = "0.11.0", features = [ "json" ] }
+bevy_embedded_assets = "0.11"
+bevy_third_person_camera = "0.1.14"
+dungeon_maze_common = { path = "../common" }
+dungeon_maze_game = { path = "../game" }
+strum = "0.26.3"
