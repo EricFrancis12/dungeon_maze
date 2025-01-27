@@ -4,6 +4,9 @@ use dungeon_maze_common::world::{
     world_structure::WorldStructureName, Cell, CellSpecial, CellWall, Chunk,
 };
 
+// TODO: make it so that WorlsStructures in .json format can omit properties,
+// and they will be assigned as default when parsed.
+
 pub trait ChunkGenerator {
     fn gen_origin_chunk(&self, x: i64, y: i64, z: i64) -> Chunk;
     fn gen_chunks(&self, x: i64, y: i64, z: i64) -> Vec<Chunk>;
@@ -47,11 +50,12 @@ impl ChunkGenerator for WorldStructureName {
             Self::None
             | Self::EmptySpace1
             | Self::FilledWithChairs1
+            // TODO: Fix items removed from TreasureChests inside House1
+            // are not being saved:
             | Self::House1
             | Self::StairsAltar1 => {
                 vec![self.gen_origin_chunk(x, y, z)]
             }
-            // TODO: define via .json file:
             Self::StaircaseTower2 => gen_chunks(self, x, y, z),
         }
     }

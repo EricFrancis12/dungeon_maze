@@ -13,7 +13,7 @@ use dungeon_maze_common::{
 use dungeon_maze_game::plugins::world::bundle::chunk::spawn_chunk_bundle;
 use std::{collections::HashMap, env, path::Path};
 
-const PLAYER_SPEED: f32 = 4.0;
+const MOVEMENT_SPEED: f32 = 4.0;
 
 #[derive(Component)]
 struct Player;
@@ -144,7 +144,7 @@ fn player_movement(
             direction.y -= 1.0;
         }
 
-        let movement = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_seconds();
+        let movement = direction.normalize_or_zero() * MOVEMENT_SPEED * time.delta_seconds();
         player_transform.translation += movement;
 
         if direction.length_squared() > 0.0 {
@@ -209,8 +209,8 @@ fn handle_assets_modified(
     asset_server: Res<AssetServer>,
     asset_lib: Res<AssetLib>,
 ) {
-    // TODO: fix other programs saving to the assets dir
-    // do not triggering this event:
+    // TODO: fix other programs saving files to the assets dir
+    // do not trigger this event:
     for event in ws_event_reader.read() {
         if let AssetEvent::Added { id: _ } | AssetEvent::Modified { id: _ } = event {
             update_assets_lib(&mut commands, &asset_server, &asset_lib);

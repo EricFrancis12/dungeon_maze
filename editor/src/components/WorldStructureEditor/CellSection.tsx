@@ -7,35 +7,14 @@ import { Cell, CellSpecial, CellWall } from "../../lib/types";
 const RED_FLOOR_COLOR = "rgb(140,0,0)";
 const BLUE_CEILING_COLOR = "rgb(0,51,102)";
 
-// // Floor
-// if cell.floor == CellWall::Solid {
-//     spawn_solid_wall_bundle(
-//         Side::Down,
-//         parent,
-//         &mesh,
-//         &materials.add(Color::linear_rgba(0.55, 0.0, 0.0, 1.0)),
-//     );
-// }
-
-// // Ceiling
-// if cell.ceiling == CellWall::Solid {
-//     spawn_solid_wall_bundle(
-//         Side::Up,
-//         parent,
-//         &mesh,
-//         &materials.add(Color::linear_rgba(0.0, 0.2, 0.4, 1.0)),
-//     );
-// }
-
-
 export default function CellSection({ cell, onChange }: {
     cell: Cell;
     onChange: (c: Cell) => void;
 }) {
-    let bg = "white";
+    let background = "white";
     if (cell.ceiling === CellWall.Solid) {
         if (cell.floor === CellWall.Solid) {
-            bg = `repeating-linear-gradient(
+            background = `repeating-linear-gradient(
                 45deg,
                 ${BLUE_CEILING_COLOR},
                 ${BLUE_CEILING_COLOR} 16px,
@@ -43,27 +22,23 @@ export default function CellSection({ cell, onChange }: {
                 ${RED_FLOOR_COLOR} 32px
             )`;
         } else {
-            bg = BLUE_CEILING_COLOR;
+            background = BLUE_CEILING_COLOR;
         }
     } else if (cell.floor === CellWall.Solid) {
-        bg = RED_FLOOR_COLOR;
+        background = RED_FLOOR_COLOR;
     }
 
     return (
         <div
             className="relative border border-gray-500"
-            style={{
-                background: bg,
-            }}
+            style={{ background }}
         >
-            {
-                cell.special === CellSpecial.Chair &&
+            {cell.special === CellSpecial.Chair &&
                 <div className="absolute flex justify-center items-center top-[37.5%] left-[37.5%] h-[25%] w-[25%] bg-white">
                     Ch
                 </div>
             }
-            {
-                cell.special === CellSpecial.TreasureChest &&
+            {cell.special === CellSpecial.TreasureChest &&
                 <div className="absolute flex justify-center items-center top-[37.5%] left-[30%] h-[25%] w-[40%] bg-amber-700">
                     TC
                 </div>
@@ -82,7 +57,7 @@ export default function CellSection({ cell, onChange }: {
                     {Array.from({ length: 2 }).map((_, index) => (
                         <div key={index} className="grid grid-cols-8 h-[40%] w-full border border-black">
                             {Array.from({ length: 8 }).map((__, _index) => (
-                                <div key={index} className={(_index === 0 ? "" : "border-l") + " h-full border-black"}>
+                                <div key={_index} className={(_index === 0 ? "" : "border-l") + " h-full border-black"}>
 
                                 </div>
                             ))}
@@ -164,28 +139,28 @@ type Side = "Top" | "Bottom" | "Left" | "Right";
 
 function getCellWallProp(side: Side): keyof Cell {
     switch (side) {
-        case "Top": return "wall_top";
-        case "Bottom": return "wall_bottom";
-        case "Left": return "wall_left";
-        case "Right": return "wall_right";
+        case "Left": return "wall_top";
+        case "Right": return "wall_bottom";
+        case "Top": return "wall_left";
+        case "Bottom": return "wall_right";
     }
 }
 
 function getCellDoorProp(side: Side): keyof Cell {
     switch (side) {
-        case "Top": return "door_top";
-        case "Bottom": return "door_bottom";
-        case "Left": return "door_left";
-        case "Right": return "door_right";
+        case "Left": return "door_top";
+        case "Right": return "door_bottom";
+        case "Top": return "door_left";
+        case "Bottom": return "door_right";
     }
 }
 
 function getCellWindowProp(side: Side): keyof Cell {
     switch (side) {
-        case "Top": return "window_top";
-        case "Bottom": return "window_bottom";
-        case "Left": return "window_left";
-        case "Right": return "window_right";
+        case "Left": return "window_top";
+        case "Right": return "window_bottom";
+        case "Top": return "window_left";
+        case "Bottom": return "window_right";
     }
 }
 

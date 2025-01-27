@@ -22,8 +22,8 @@ pub fn spawn_window_bundle(
 ) {
     // TODO: refine window open/close start & end positions for animation:
     let (sx, sy, sz, sr, ex, ey, ez, er) = match side {
-        Side::Top => (-1.85, 1.5, 0.015, PI / 2.0, -1.5, 1.5, -0.5, PI),
-        Side::Bottom => (1.85, 1.5, -0.015, -PI / 2.0, 1.5, 1.5, 0.5, 0.0),
+        Side::Top => (1.85, 1.5, 0.015, -PI / 2.0, -1.5, 1.5, -0.5, PI),
+        Side::Bottom => (-1.85, 1.5, -0.015, PI / 2.0, 1.5, 1.5, 0.5, 0.0),
         Side::Left => (0.015, 1.5, -1.85, 0.0, 0.5, 1.5, -1.5, PI / 2.0),
         Side::Right => (0.015, 1.5, 1.85, PI, -0.5, 1.5, 1.5, -PI / 2.0),
         _ => panic!("unexpected side: {}", side),
