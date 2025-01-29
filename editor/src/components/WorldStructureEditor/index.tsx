@@ -8,7 +8,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import ChunkSection from "./ChunkSection";
 import DummyChunkSection from "./DummyChunkSection";
 import { arrFromIncr, cn } from "../../lib/utils";
-import { Chunk, WorldStructure, newChunk } from "../../lib/types";
+import { Cell, CellWall, Chunk, WorldStructure, newChunk } from "../../lib/types";
 
 type DummyChunk = {
     x: number;
@@ -72,6 +72,20 @@ export default function WorldStructureEditor({ name, worldStructure, setWorldStr
     }
 
     const yChoices = arrFromIncr(leastY, greatestY, 1);
+
+    function handleChunkUpdate(
+        chunkPredicate: (ch: Chunk) => boolean,
+        newCellFunc: (c: Cell) => Cell,
+    ): void {
+        setWorldStructure({
+            ...worldStructure,
+            chunks: worldStructure.chunks.map(
+                (ch) => chunkPredicate(ch)
+                    ? { ...ch, cells: ch.cells.map((row) => row.map(newCellFunc)) }
+                    : ch,
+            ),
+        })
+    };
 
     return (
         <div className="flex flex-col h-full w-full">
@@ -187,15 +201,30 @@ export default function WorldStructureEditor({ name, worldStructure, setWorldStr
                                     ? <ColRowHeading
                                         key={index}
                                         text={`X: ${chunk.x}`}
-                                        contextText={`Clear column x = ${chunk.x}`}
                                         className="left-0 h-[16%] w-full"
                                         style={{ [d]: "100%" }}
-                                        onClick={() => setWorldStructure({
+                                        onClearIntent={() => setWorldStructure({
                                             ...worldStructure,
                                             chunks: worldStructure.chunks.filter(
                                                 (ch) => ch.x !== chunk.x
                                             ),
                                         })}
+                                        onAllCeilingsIntent={() => handleChunkUpdate(
+                                            (ch) => ch.x === chunk.x,
+                                            (c) => ({ ...c, ceiling: CellWall.Solid }),
+                                        )}
+                                        onClearCeilingsIntent={() => handleChunkUpdate(
+                                            (ch) => ch.x === chunk.x,
+                                            (c) => ({ ...c, ceiling: CellWall.None }),
+                                        )}
+                                        onAllFlooredIntent={() => handleChunkUpdate(
+                                            (ch) => ch.x === chunk.x,
+                                            (c) => ({ ...c, floor: CellWall.Solid }),
+                                        )}
+                                        onClearFlooredIntent={() => handleChunkUpdate(
+                                            (ch) => ch.x === chunk.x,
+                                            (c) => ({ ...c, floor: CellWall.None }),
+                                        )}
                                     />
                                     : null
                                 )}
@@ -203,15 +232,30 @@ export default function WorldStructureEditor({ name, worldStructure, setWorldStr
                                     ? <ColRowHeading
                                         key={index}
                                         text={`Z: ${chunk.z}`}
-                                        contextText={`Clear row z = ${chunk.z}`}
                                         className="bottom-0 h-full w-[16%]"
                                         style={{ [d]: "100%" }}
-                                        onClick={() => setWorldStructure({
+                                        onClearIntent={() => setWorldStructure({
                                             ...worldStructure,
                                             chunks: worldStructure.chunks.filter(
                                                 (ch) => ch.z !== chunk.z
                                             ),
                                         })}
+                                        onAllCeilingsIntent={() => handleChunkUpdate(
+                                            (ch) => ch.z === chunk.z,
+                                            (c) => ({ ...c, ceiling: CellWall.Solid }),
+                                        )}
+                                        onClearCeilingsIntent={() => handleChunkUpdate(
+                                            (ch) => ch.z === chunk.z,
+                                            (c) => ({ ...c, ceiling: CellWall.None }),
+                                        )}
+                                        onAllFlooredIntent={() => handleChunkUpdate(
+                                            (ch) => ch.z === chunk.z,
+                                            (c) => ({ ...c, floor: CellWall.Solid }),
+                                        )}
+                                        onClearFlooredIntent={() => handleChunkUpdate(
+                                            (ch) => ch.z === chunk.z,
+                                            (c) => ({ ...c, floor: CellWall.None }),
+                                        )}
                                     />
                                     : null
                                 )}
@@ -281,10 +325,13 @@ export default function WorldStructureEditor({ name, worldStructure, setWorldStr
     );
 }
 
-function ColRowHeading({ text, contextText, onClick, className, style }: {
+function ColRowHeading({ text, onClearIntent, onAllCeilingsIntent, onClearCeilingsIntent, onAllFlooredIntent, onClearFlooredIntent, className, style }: {
     text: string;
-    contextText: string;
-    onClick: () => void;
+    onClearIntent: () => void;
+    onAllCeilingsIntent: () => void;
+    onClearCeilingsIntent: () => void;
+    onAllFlooredIntent: () => void;
+    onClearFlooredIntent: () => void;
     className?: string;
     style?: CSSProperties;
 }) {
@@ -302,8 +349,20 @@ function ColRowHeading({ text, contextText, onClick, className, style }: {
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="bg-white">
-                <ContextMenuItem onClick={onClick}>
-                    {contextText}
+                <ContextMenuItem onClick={onClearIntent}>
+                    Clear
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onAllCeilingsIntent}>
+                    All Ceilings
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onClearCeilingsIntent}>
+                    Clear Ceilings
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onAllFlooredIntent}>
+                    All Floors
+                </ContextMenuItem>
+                <ContextMenuItem onClick={onClearFlooredIntent}>
+                    Clear Floors
                 </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>
